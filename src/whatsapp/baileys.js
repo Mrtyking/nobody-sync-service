@@ -19,6 +19,7 @@ export const {
   Browsers,
   jidNormalizedUser,
   downloadMediaMessage,
+  S_WHATSAPP_NET,
 } = ns;
 
 if (typeof makeWASocket !== 'function' || !DisconnectReason) {

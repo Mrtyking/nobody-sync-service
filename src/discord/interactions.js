@@ -6,6 +6,7 @@ import * as views from '../ui/views.js';
 import { IDS } from '../ui/views.js';
 import { manager } from '../whatsapp/manager.js';
 import { SessionState } from '../whatsapp/session.js';
+import { collectStatus } from '../status.js';
 import { qrFileName, renderQr } from '../utils/qr.js';
 
 const log = createLogger('discord');
@@ -131,7 +132,7 @@ async function handleLink(interaction) {
   const session = manager.get(userId);
 
   if (session.state === SessionState.OPEN) {
-    return deliver(interaction, 'editReply', views.linkedView(session));
+    return deliver(interaction, 'editReply', views.linkedView(session, { alreadyLinked: true }));
   }
 
   // Un usuario, un flujo: cerramos el anterior si seguía vivo.
@@ -142,14 +143,7 @@ async function handleLink(interaction) {
   if (session.isLinked()) {
     await session.loadMeta();
     session.connect().catch((error) => log.error('Reconexión manual', error));
-    return deliver(
-      interaction,
-      'editReply',
-      views.noticeView(
-        'Sesión ya vinculada',
-        `Tu cuenta **${session.phone ? `•••${session.phone.slice(-4)}` : 'guardada'}** sigue registrada y se está reconectando. Si quieres empezar de cero, usa Desconectar y vuelve a generar el código.`,
-      ),
-    );
+    return deliver(interaction, 'editReply', await buildStatus(interaction));
   }
 
   flows.set(userId, createFlow(interaction, session));
@@ -171,14 +165,35 @@ async function handleLink(interaction) {
   }
 }
 
-/* ─── Botón: estado ──────────────────────────────────────────────────────── */
+/* ─── Botón: estado del sistema ──────────────────────────────────────────── */
+
+async function buildStatus(interaction) {
+  const session = manager.get(interaction.user.id);
+  if (!session.phone) await session.loadMeta();
+
+  // Tiempo real entre que Discord creó la interacción y la atendimos.
+  const roundTrip = Math.max(0, Date.now() - interaction.createdTimestamp);
+  const [status, media] = await Promise.all([
+    collectStatus(interaction.client, session, { roundTrip }),
+    session.media.stats(),
+  ]);
+
+  return views.statusView(status, session, {
+    stored: media.count,
+    size: media.human,
+    delivered: session.captures,
+  });
+}
 
 async function handleStatus(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const session = manager.get(interaction.user.id);
-  if (!session.phone) await session.loadMeta();
-  const stats = await session.stats();
-  return deliver(interaction, 'editReply', views.statusView(session, stats));
+  return deliver(interaction, 'editReply', await buildStatus(interaction));
+}
+
+async function handleStatusRefresh(interaction) {
+  // El ping de WhatsApp puede tardar; hay que reconocer la interacción primero.
+  await interaction.deferUpdate();
+  return deliver(interaction, 'editReply', await buildStatus(interaction));
 }
 
 /* ─── Botones: desconectar ───────────────────────────────────────────────── */
@@ -229,6 +244,7 @@ async function handleCancel(interaction) {
 const BUTTONS = {
   [IDS.link]: handleLink,
   [IDS.status]: handleStatus,
+  [IDS.statusRefresh]: handleStatusRefresh,
   [IDS.unlink]: handleUnlink,
   [IDS.unlinkConfirm]: handleUnlinkConfirm,
   [IDS.cancel]: handleCancel,

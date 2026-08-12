@@ -13,9 +13,19 @@ chat de WhatsApp, donde queda guardada para siempre.
 ## Cómo funciona
 
 **Panel (`/setpanel`)**
-Publica un contenedor con tres botones **dentro** del propio recuadro (Components V2 de
-Discord, no botones sueltos debajo): generar QR, ver estado y desconectar. Si la versión de
-discord.js o del gateway no admite Components V2, el panel se degrada solo a un embed clásico.
+Publica un contenedor con un GIF de cabecera y tres botones **dentro** del propio recuadro
+(Components V2 de Discord, no botones sueltos debajo): generar QR, ver estado y desconectar.
+Si la versión de discord.js o del gateway no admite Components V2, el panel se degrada solo a
+un embed clásico. El GIF se cambia con `PANEL_GIF`; por defecto usa `assets/nobody.gif`.
+
+**Estado del sistema**
+El botón de estado no muestra un texto fijo: mide en el momento de pulsarlo la latencia del
+websocket de Discord, el tiempo de respuesta real de la interacción y la latencia contra los
+servidores de WhatsApp (el mismo ping `w:p` que Baileys usa como keep-alive). Añade servidores,
+cuentas vinculadas y en línea, archivos guardados, entregas hechas, memoria, versión de Node y
+tiempo encendido. La barra de color cambia sola: verde si las dos mitades responden, ámbar si
+WhatsApp está caído pero reconectando, rojo si Discord no responde. Incluye un botón
+**Actualizar** que vuelve a medirlo todo sin salir del mensaje.
 
 **Vinculación**
 El botón abre una respuesta privada (solo la ve quien pulsó) con el QR renderizado a
@@ -87,8 +97,11 @@ En el panel de **Bots y aplicaciones**, runtime Node.js 20 o superior:
 | `DISCORD_CLIENT_ID` | — | Application ID. Obligatorio. |
 | `DISCORD_GUILD_ID` | vacío | Registra los comandos solo en ese servidor, al instante. |
 | `BRAND_NAME` | `Nobody Sync` | Nombre que aparece en el panel y en el dispositivo vinculado. |
-| `BRAND_URL` | `https://veltramon.com` | Pie del panel. |
 | `PANEL_COLOR` | `#5865F2` | Color de la barra lateral del contenedor. |
+| `PANEL_GIF` | `assets/nobody.gif` | GIF de cabecera del panel. Ruta relativa o absoluta. |
+| `STATUS_OK_COLOR` | `#3BA55D` | Barra del estado cuando todo responde. |
+| `STATUS_WARN_COLOR` | `#F0B232` | Barra cuando WhatsApp está reconectando. |
+| `STATUS_DOWN_COLOR` | `#ED4245` | Barra cuando el servicio está caído. |
 | `QR_SIZE` | `1024` | Lado del PNG en píxeles (256–2048). |
 | `QR_MARGIN` | `2` | Margen del QR en módulos. |
 | `QR_DARK` / `QR_LIGHT` | `#0B0B0F` / `#FFFFFF` | Colores del código. Mantén el contraste alto. |
@@ -108,6 +121,7 @@ En el panel de **Bots y aplicaciones**, runtime Node.js 20 o superior:
 src/
   index.js              Arranque, avisos por DM y apagado limpio
   config.js             Lectura y validación del entorno
+  status.js             Métricas en vivo de Discord, WhatsApp y proceso
   discord/
     commands.js         Definición y registro de /setpanel
     interactions.js     Router de comandos y botones, flujo del QR
@@ -115,6 +129,7 @@ src/
     render.js           Components V2 con fallback automático a embed
     views.js            Textos y estructura de cada pantalla
   utils/
+    assets.js           Carga y cachea el GIF del panel
     logger.js           Log propio y logger de Baileys
     qr.js               Render del QR en HD
   whatsapp/
@@ -123,6 +138,7 @@ src/
     manager.js          Registro de sesiones y limpieza periódica
     mediaStore.js       Archivos en disco con caducidad
     viewOnce.js         Detección, descarga y entrega del contenido
+assets/                 GIF del panel
 data/                   Credenciales y medios (no versionar)
 ```
 

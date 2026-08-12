@@ -44,8 +44,15 @@ export const config = {
   },
   brand: {
     name: str('BRAND_NAME', 'Nobody Sync'),
-    url: str('BRAND_URL', 'https://veltramon.com'),
     color: color('PANEL_COLOR', 0x5865f2),
+    // Ruta relativa a la raíz del proyecto (o absoluta) del GIF del panel.
+    panelGif: str('PANEL_GIF', 'assets/nobody.gif'),
+  },
+  // Colores de estado del panel de diagnóstico.
+  status: {
+    ok: color('STATUS_OK_COLOR', 0x3ba55d),
+    warn: color('STATUS_WARN_COLOR', 0xf0b232),
+    down: color('STATUS_DOWN_COLOR', 0xed4245),
   },
   qr: {
     size: Math.min(Math.max(int('QR_SIZE', 1024), 256), 2048),

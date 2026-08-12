@@ -52,6 +52,24 @@ class SessionManager extends EventEmitter {
     return ids.length;
   }
 
+  /** Cuenta cuántas cuentas hay vinculadas en disco y cuántas están en línea. */
+  counts() {
+    let linked = 0;
+    try {
+      linked = fs
+        .readdirSync(config.paths.sessions, { withFileTypes: true })
+        .filter(
+          (entry) =>
+            entry.isDirectory() &&
+            fs.existsSync(path.join(config.paths.sessions, entry.name, 'creds.json')),
+        ).length;
+    } catch {
+      linked = 0;
+    }
+    const connected = [...this.sessions.values()].filter((s) => s.state === 'open').length;
+    return { linked, connected };
+  }
+
   startCleanup() {
     if (this.cleanupTimer) return;
     const run = async () => {

@@ -11,6 +11,7 @@ import {
   jidNormalizedUser,
   makeCacheableSignalKeyStore,
   makeWASocket,
+  S_WHATSAPP_NET,
   useMultiFileAuthState,
 } from './baileys.js';
 import { MediaStore } from './mediaStore.js';
@@ -60,6 +61,7 @@ export class Session extends EventEmitter {
     this.ownerJid = null;
     this.phone = null;
     this.connectedAt = null;
+    this.linkedAt = null;
     this.lastError = null;
     this.captures = 0;
     this.attempts = 0;
@@ -210,12 +212,40 @@ export class Session extends EventEmitter {
     }, delay);
   }
 
+  /**
+   * Latencia real contra los servidores de WhatsApp: el mismo ping que Baileys
+   * usa como keep-alive, midiendo el viaje de ida y vuelta.
+   */
+  async ping({ timeoutMs = 5_000 } = {}) {
+    if (!this.sock || this.state !== SessionState.OPEN) return null;
+    const started = Date.now();
+    try {
+      await Promise.race([
+        this.sock.query({
+          tag: 'iq',
+          attrs: {
+            id: this.sock.generateMessageTag(),
+            to: S_WHATSAPP_NET,
+            type: 'get',
+            xmlns: 'w:p',
+          },
+          content: [{ tag: 'ping', attrs: {} }],
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeoutMs)),
+      ]);
+      return Date.now() - started;
+    } catch {
+      return null;
+    }
+  }
+
   async #saveMeta() {
+    this.linkedAt ??= Date.now();
     const meta = {
       id: this.id,
       phone: this.phone,
       ownerJid: this.ownerJid,
-      linkedAt: Date.now(),
+      linkedAt: this.linkedAt,
     };
     await fsp.writeFile(path.join(this.dir, 'meta.json'), JSON.stringify(meta, null, 2), 'utf8');
   }
@@ -225,6 +255,7 @@ export class Session extends EventEmitter {
       const meta = JSON.parse(await fsp.readFile(path.join(this.dir, 'meta.json'), 'utf8'));
       this.phone = meta.phone ?? null;
       this.ownerJid = meta.ownerJid ?? null;
+      this.linkedAt = meta.linkedAt ?? null;
     } catch {
       /* sin metadatos previos */
     }
@@ -268,10 +299,6 @@ export class Session extends EventEmitter {
     this.phone = null;
     this.ownerJid = null;
     this.connectedAt = null;
-  }
-
-  async stats() {
-    const media = await this.media.stats();
-    return { captures: this.captures, stored: media.count, size: media.human };
+    this.linkedAt = null;
   }
 }

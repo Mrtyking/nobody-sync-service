@@ -26,8 +26,15 @@ function makeButton(spec) {
 }
 
 function attachmentsOf(view) {
-  if (!view.image) return [];
-  return [new AttachmentBuilder(view.image.buffer, { name: view.image.name })];
+  return [view.banner, view.image]
+    .filter(Boolean)
+    .map((media) => new AttachmentBuilder(media.buffer, { name: media.name }));
+}
+
+function gallery(media) {
+  return new Discord.MediaGalleryBuilder().addItems(
+    new Discord.MediaGalleryItemBuilder().setURL(`attachment://${media.name}`),
+  );
 }
 
 function separator(large = false) {
@@ -55,19 +62,19 @@ function buildV2(view) {
   const container = new Discord.ContainerBuilder();
   if (view.color != null) container.setAccentColor(view.color);
 
+  const canRenderMedia = typeof Discord.MediaGalleryBuilder === 'function';
+  // La cabecera va arriba del todo, antes del título.
+  if (view.banner && canRenderMedia) container.addMediaGalleryComponents(gallery(view.banner));
+
   const head = [];
   if (view.title) head.push(`## ${view.title}`);
   if (view.subtitle) head.push(`-# ${view.subtitle}`);
   if (view.body) head.push(view.body);
   if (head.length) container.addTextDisplayComponents(text(head.join('\n')));
 
-  if (view.image && typeof Discord.MediaGalleryBuilder === 'function') {
+  if (view.image && canRenderMedia) {
     container.addSeparatorComponents(separator());
-    container.addMediaGalleryComponents(
-      new Discord.MediaGalleryBuilder().addItems(
-        new Discord.MediaGalleryItemBuilder().setURL(`attachment://${view.image.name}`),
-      ),
-    );
+    container.addMediaGalleryComponents(gallery(view.image));
   }
 
   for (const block of view.blocks ?? []) {
@@ -122,7 +129,13 @@ function buildClassic(view) {
     });
   }
 
-  if (view.image) embed.setImage(`attachment://${view.image.name}`);
+  // Un embed clásico solo admite una imagen grande y una miniatura.
+  if (view.image) {
+    if (view.banner) embed.setThumbnail(`attachment://${view.banner.name}`);
+    embed.setImage(`attachment://${view.image.name}`);
+  } else if (view.banner) {
+    embed.setImage(`attachment://${view.banner.name}`);
+  }
   if (view.footer) embed.setFooter({ text: view.footer });
 
   const buttons = [
