@@ -1,0 +1,23 @@
+{
+  "name": "nobody-sync",
+  "version": "1.0.0",
+  "description": "Panel de Discord para vincular WhatsApp por QR y rescatar fotos y videos de una sola vez reaccionando con un emoji.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.18",
+    "discord.js": "^14.21.0",
+    "dotenv": "^17.2.1",
+    "pino": "^9.7.0",
+    "qrcode": "^1.5.4"
+  },
+  "license": "MIT",
+  "private": true
+}
