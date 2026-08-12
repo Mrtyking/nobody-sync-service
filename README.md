@@ -40,14 +40,27 @@ WhatsApp cierra la sesión de verdad (códigos 401, 403, 405, sesión inválida)
 avisa por privado en Discord.
 
 **Rescate de "una sola vez"**
-El medio se descarga **en cuanto entra al dispositivo**, no al reaccionar: si se esperara a la
-reacción, el emisor ya podría haberlo abierto o borrado y el archivo dejaría de existir. Al
-reaccionar se envía lo ya guardado, más una nota con el origen y la fecha.
+El medio se descarga **en cuanto entra al dispositivo**, no al pedirlo: si se esperara a la
+petición, el emisor ya podría haberlo abierto o borrado y el archivo dejaría de existir.
+Después se envía lo ya guardado, más una nota con el origen y la fecha.
 
-- Si reaccionas tú, la copia llega a tu propio chat (Mensajes contigo mismo).
-- Si reacciona otro participante, llega a su chat privado. Se desactiva con
+Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
+
+- **Respondiendo al mensaje** con un emoji (mantener pulsado → Responder → mandar el emoji).
+  Es lo que se hace en la práctica.
+- **Reaccionando** al mensaje con un emoji.
+
+Detalles:
+
+- La copia llega **siempre al chat privado de quien la pide**, nunca al chat donde estaba la
+  foto. Si la pides tú, aparece en tu chat contigo mismo.
+- Si la pide otro participante de un grupo, le llega a su chat privado. Se desactiva con
   `ALLOW_GUEST_REACTIONS=false`.
-- Cualquier emoji sirve. Para limitarlo: `REACTION_TRIGGERS=⭐,📥`.
+- Solo se acepta un mensaje formado únicamente por emojis, así que responder "qué risa" no
+  dispara nada. Para limitarlo a emojis concretos: `TRIGGER_EMOJIS=⭐,📥`.
+- Si el archivo no estaba guardado (el bot no estaba conectado cuando llegó), se intenta bajar
+  de la copia citada que viaja dentro de la propia respuesta. Si tampoco se puede, avisa por
+  privado en lugar de quedarse callado.
 - Los archivos se borran del servidor a las `MEDIA_TTL_HOURS` horas (24 por defecto).
 
 ---
@@ -107,7 +120,7 @@ En el panel de **Bots y aplicaciones**, runtime Node.js 20 o superior:
 | `QR_DARK` / `QR_LIGHT` | `#0B0B0F` / `#FFFFFF` | Colores del código. Mantén el contraste alto. |
 | `QR_TIMEOUT_MS` | `60000` | Vida de cada código antes de renovarse. |
 | `MEDIA_TTL_HOURS` | `24` | Horas que se guardan los archivos rescatados. |
-| `REACTION_TRIGGERS` | vacío | Emojis que activan el envío. Vacío = cualquiera. |
+| `TRIGGER_EMOJIS` | vacío | Emojis que activan el envío. Vacío = cualquiera. |
 | `ALLOW_GUEST_REACTIONS` | `true` | Permite que otros participantes reciban su copia. |
 | `NOTIFY_CAPTURES` | `true` | Aviso por DM en Discord con cada rescate. |
 | `DATA_DIR` | `./data` | Carpeta persistente de sesiones y archivos. |
@@ -137,7 +150,7 @@ src/
     session.js          Socket, reconexión y ciclo de vida
     manager.js          Registro de sesiones y limpieza periódica
     mediaStore.js       Archivos en disco con caducidad
-    viewOnce.js         Detección, descarga y entrega del contenido
+    viewOnce.js         Detección, descarga, disparadores y entrega
 assets/                 GIF del panel
 data/                   Credenciales y medios (no versionar)
 ```

@@ -66,7 +66,7 @@ export class Session extends EventEmitter {
     this.captures = 0;
     this.attempts = 0;
     this.stopped = false;
-    this.seenReactions = new Set();
+    this.seenTriggers = new Set();
   }
 
   isLinked() {
@@ -80,12 +80,12 @@ export class Session extends EventEmitter {
   }
 
   #trimSeen() {
-    if (this.seenReactions.size <= MAX_SEEN_REACTIONS) return;
-    const excess = this.seenReactions.size - MAX_SEEN_REACTIONS;
+    if (this.seenTriggers.size <= MAX_SEEN_REACTIONS) return;
+    const excess = this.seenTriggers.size - MAX_SEEN_REACTIONS;
     let i = 0;
-    for (const key of this.seenReactions) {
+    for (const key of this.seenTriggers) {
       if (i++ >= excess) break;
-      this.seenReactions.delete(key);
+      this.seenTriggers.delete(key);
     }
   }
 

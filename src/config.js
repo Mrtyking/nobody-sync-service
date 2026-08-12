@@ -65,7 +65,8 @@ export const config = {
   },
   capture: {
     ttlHours: int('MEDIA_TTL_HOURS', 24),
-    triggers: list('REACTION_TRIGGERS'),
+    // Vale tanto para reacciones como para respuestas citando con emoji.
+    triggers: list('TRIGGER_EMOJIS').concat(list('REACTION_TRIGGERS')),
     allowGuests: bool('ALLOW_GUEST_REACTIONS', true),
     notify: bool('NOTIFY_CAPTURES', true),
   },
