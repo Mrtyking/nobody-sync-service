@@ -52,6 +52,23 @@ function describeType(kind) {
   return { image: 'Foto', video: 'Video', audio: 'Audio' }[kind] ?? 'Archivo';
 }
 
+/** Número recortado para los logs: no hace falta volcarlo entero. */
+function shortJid(jid = '') {
+  const number = jid.split('@')[0];
+  return number.length > 6 ? `+${number.slice(0, 4)}••••${number.slice(-4)}` : number;
+}
+
+/**
+ * Envía y guarda el mensaje en la caché. Es imprescindible: si el aparato de
+ * destino no consigue descifrarlo pedirá el reenvío, y solo podremos servirlo
+ * si conservamos el contenido original.
+ */
+async function send(session, jid, content) {
+  const sent = await session.sock.sendMessage(jid, content);
+  session.messages.set(sent?.key?.id, sent?.message);
+  return sent;
+}
+
 // Un emoji "de verdad": un pictograma, una bandera (dos indicadores
 // regionales) o un teclado numérico. Las banderas y los teclados no son
 // Extended_Pictographic, por eso hay que nombrarlos aparte.
@@ -202,11 +219,9 @@ async function deliverMedia(session, entry, targetId, { quotedReply = null } = {
   if (!record) {
     // Solo avisamos si lo citado era de verdad de una sola vez; si no, callamos.
     if (quotedReply && extractViewOnce(quotedReply.quoted)) {
-      await session.sock
-        .sendMessage(requester.jid, {
-          text: `No pude recuperar ese archivo. Solo se guardan los que llegan con ${config.brand.name} conectado, y el emisor puede haberlo eliminado.`,
-        })
-        .catch(() => {});
+      await send(session, requester.jid, {
+        text: `No pude recuperar ese archivo. Solo se guardan los que llegan con ${config.brand.name} conectado, y el emisor puede haberlo eliminado.`,
+      }).catch(() => {});
     }
     return;
   }
@@ -222,11 +237,11 @@ async function deliverMedia(session, entry, targetId, { quotedReply = null } = {
   if (record.caption) payload.caption = record.caption;
 
   try {
-    await session.sock.sendMessage(requester.jid, payload);
+    await send(session, requester.jid, payload);
     const origin = record.fromMe
       ? 'Enviado por ti'
       : record.pushName || record.sender?.split('@')[0] || 'Desconocido';
-    await session.sock.sendMessage(requester.jid, {
+    await send(session, requester.jid, {
       text: [
         `${label} de una sola vez recuperada`,
         `Origen: ${origin}`,
@@ -237,7 +252,9 @@ async function deliverMedia(session, entry, targetId, { quotedReply = null } = {
     });
     session.captures += 1;
     session.emit('capture', { ...record, to: requester.jid, isOwner: requester.isOwner });
-    log.info(`Entregado ${record.kind} a ${requester.jid} (${session.id})`);
+    log.info(
+      `Entregado ${record.kind} a ${requester.isOwner ? 'su propio chat' : shortJid(requester.jid)}`,
+    );
   } catch (error) {
     log.warn('No se pudo entregar el archivo', error);
   }

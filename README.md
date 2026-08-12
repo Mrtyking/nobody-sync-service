@@ -33,6 +33,19 @@ El botón abre una respuesta privada (solo la ve quien pulsó) con el QR renderi
 60 segundos hasta que se escanea o pasan 5 minutos. Las credenciales quedan en
 `data/sessions/<id-de-discord>/`.
 
+**Entrega fiable**
+WhatsApp es de extremo a extremo: si el teléfono de destino no consigue descifrar un mensaje no
+puede pedírselo al servidor, se lo pide al emisor. El bot guarda los últimos 256 mensajes en
+memoria para poder atender esas peticiones de reenvío; sin esa caché el archivo se queda
+eternamente en *"Esperando el mensaje. Esto puede tomar tiempo"*.
+
+**Consola limpia**
+libsignal escribe directamente en la consola y varios de sus avisos arrastran el volcado entero
+del objeto de sesión, cientos de líneas de buffers por mensaje. El bot filtra ese ruido: el
+mantenimiento normal del cifrado se descarta y lo que sí importa (fallos de descifrado, errores
+de sesión) se resume en una línea, sin repetirse más de una vez cada 30 segundos. Con
+`BAILEYS_LOG_LEVEL=debug` se deja pasar todo.
+
 **Conexión permanente**
 La sesión se reconecta sola con retroceso exponencial (2 s → 30 s) ante cualquier caída, y
 todas las sesiones vinculadas se levantan de nuevo al arrancar el bot. Solo se detiene si
@@ -143,6 +156,7 @@ src/
     views.js            Textos y estructura de cada pantalla
   utils/
     assets.js           Carga y cachea el GIF del panel
+    console.js          Filtra el ruido que libsignal escribe por su cuenta
     logger.js           Log propio y logger de Baileys
     qr.js               Render del QR en HD
   whatsapp/
@@ -150,6 +164,7 @@ src/
     session.js          Socket, reconexión y ciclo de vida
     manager.js          Registro de sesiones y limpieza periódica
     mediaStore.js       Archivos en disco con caducidad
+    messageCache.js     Últimos mensajes, para atender reenvíos
     viewOnce.js         Detección, descarga, disparadores y entrega
 assets/                 GIF del panel
 data/                   Credenciales y medios (no versionar)

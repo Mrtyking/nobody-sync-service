@@ -1,11 +1,15 @@
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import { assertConfig, config, ensureDirs } from './config.js';
+import { installConsoleFilter } from './utils/console.js';
 import { createLogger, log } from './utils/logger.js';
 import { registerCommands } from './discord/commands.js';
 import { routeInteraction } from './discord/interactions.js';
 import { manager } from './whatsapp/manager.js';
 
 const dm = createLogger('aviso');
+
+// Antes de tocar nada de WhatsApp: libsignal escribe en consola por su cuenta.
+installConsoleFilter({ verbose: config.logLevel === 'debug' });
 
 try {
   assertConfig();
@@ -61,6 +65,9 @@ if (config.capture.notify) {
 
 client.once(Events.ClientReady, async (ready) => {
   log.info(`Conectado a Discord como ${ready.user.tag}`);
+  if (config.logLevel !== 'debug') {
+    log.info('Avisos internos de cifrado resumidos · BAILEYS_LOG_LEVEL=debug para verlos enteros');
+  }
   try {
     await registerCommands();
   } catch (error) {

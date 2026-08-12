@@ -15,6 +15,7 @@ import {
   useMultiFileAuthState,
 } from './baileys.js';
 import { MediaStore } from './mediaStore.js';
+import { MessageCache } from './messageCache.js';
 import { handleUpsert } from './viewOnce.js';
 
 const log = createLogger('wa');
@@ -54,6 +55,7 @@ export class Session extends EventEmitter {
     this.id = id;
     this.dir = path.join(config.paths.sessions, id);
     this.media = new MediaStore(id);
+    this.messages = new MessageCache();
     this.state = SessionState.IDLE;
     this.sock = null;
     this.qr = null;
@@ -121,9 +123,10 @@ export class Session extends EventEmitter {
       // Vida de cada QR. Sin esto, Baileys renueva el primero a los 60 s y los
       // siguientes cada 20 s, y la cuenta atrás del panel dejaría de cuadrar.
       qrTimeout: config.qr.timeoutMs,
-      // Sin store propio no podemos resolver mensajes citados; devolvemos vacío
-      // para que Baileys no reintente indefinidamente.
-      getMessage: async () => undefined,
+      // Cuando el receptor no logra descifrar algo pide el reenvío al emisor, y
+      // Baileys nos lo reclama por aquí. Sin esto el mensaje se queda colgado
+      // en "Esperando el mensaje" para siempre.
+      getMessage: async (key) => this.messages.get(key?.id),
     });
 
     this.sock = sock;
@@ -132,6 +135,11 @@ export class Session extends EventEmitter {
       this.#onConnectionUpdate(update).catch((error) => log.error('connection.update', error));
     });
     sock.ev.on('messages.upsert', (event) => {
+      // Guardar todo lo que pasa por aquí es lo que permite atender los
+      // reenvíos: incluye también lo que enviamos nosotros.
+      for (const entry of event.messages ?? []) {
+        this.messages.set(entry?.key?.id, entry?.message);
+      }
       handleUpsert(this, event)
         .then(() => this.#trimSeen())
         .catch((error) => log.error('messages.upsert', error));
