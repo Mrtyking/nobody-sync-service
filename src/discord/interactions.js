@@ -130,6 +130,9 @@ async function handleLink(interaction) {
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   const session = manager.get(userId);
+  // Sin los metadatos no sabríamos que estas credenciales ya no valen y
+  // acabaríamos reconectando contra una sesión muerta en vez de dar un QR.
+  await session.ensureMeta();
 
   if (session.state === SessionState.OPEN) {
     return deliver(interaction, 'editReply', views.linkedView(session, { alreadyLinked: true }));
@@ -141,7 +144,6 @@ async function handleLink(interaction) {
   await deliver(interaction, 'editReply', views.preparingView());
 
   if (session.isLinked()) {
-    await session.loadMeta();
     session.connect().catch((error) => log.error('Reconexión manual', error));
     return deliver(interaction, 'editReply', await buildStatus(interaction));
   }
@@ -169,7 +171,7 @@ async function handleLink(interaction) {
 
 async function buildStatus(interaction) {
   const session = manager.get(interaction.user.id);
-  if (!session.phone) await session.loadMeta();
+  await session.ensureMeta();
 
   // Tiempo real entre que Discord creó la interacción y la atendimos.
   const roundTrip = Math.max(0, Date.now() - interaction.createdTimestamp);

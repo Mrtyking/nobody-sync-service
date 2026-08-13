@@ -3,10 +3,12 @@ import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { config } from '../config.js';
 import { createLogger } from '../utils/logger.js';
-import { Session } from './session.js';
+import { Session, SessionState } from './session.js';
 
 const log = createLogger('manager');
 const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
+/** Separación entre reconexiones al arrancar, para no golpear a WhatsApp de golpe. */
+const RESTORE_STAGGER_MS = 1_500;
 
 /** Registro central de sesiones, una por usuario de Discord. */
 class SessionManager extends EventEmitter {
@@ -22,52 +24,70 @@ class SessionManager extends EventEmitter {
 
     session = new Session(discordUserId);
     // Reemitimos todo hacia arriba para que la capa de Discord avise al usuario.
-    for (const event of ['open', 'logout', 'replaced', 'capture', 'state', 'qr-expired']) {
+    for (const event of ['open', 'relink-required', 'replaced', 'capture', 'state', 'qr-expired']) {
       session.on(event, (...args) => this.emit(event, session, ...args));
     }
     this.sessions.set(discordUserId, session);
     return session;
   }
 
-  /** Levanta al arrancar todas las sesiones que ya estaban vinculadas. */
-  async restoreAll() {
-    let ids = [];
+  /** Ids con credenciales guardadas en disco. */
+  #storedIds() {
     try {
-      ids = fs
+      return fs
         .readdirSync(config.paths.sessions, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
         .map((entry) => entry.name)
         .filter((id) => fs.existsSync(path.join(config.paths.sessions, id, 'creds.json')));
     } catch {
-      return 0;
+      return [];
     }
-
-    for (const id of ids) {
-      const session = this.get(id);
-      await session.loadMeta();
-      session.connect().catch((error) => log.error(`No se pudo restaurar ${id}`, error));
-    }
-
-    if (ids.length) log.info(`Restaurando ${ids.length} sesión(es) de WhatsApp`);
-    return ids.length;
   }
 
-  /** Cuenta cuántas cuentas hay vinculadas en disco y cuántas están en línea. */
+  /** Levanta al arrancar todas las sesiones que ya estaban vinculadas. */
+  async restoreAll() {
+    const ids = this.#storedIds();
+    if (!ids.length) return 0;
+
+    let restored = 0;
+    let pending = 0;
+    for (const id of ids) {
+      const session = this.get(id);
+      await session.ensureMeta();
+      if (!session.isLinked()) {
+        pending += 1; // esperando a que su dueño escanee otro código
+        continue;
+      }
+      // Escalonadas: varias cuentas reconectando a la vez es una forma rápida
+      // de que WhatsApp empiece a rechazar sesiones.
+      const delay = restored * RESTORE_STAGGER_MS;
+      restored += 1;
+      setTimeout(() => {
+        session.connect().catch((error) => log.error(`No se pudo restaurar ${id}`, error));
+      }, delay).unref?.();
+    }
+
+    log.info(
+      `Restaurando ${restored} sesión(es) de WhatsApp${pending ? ` · ${pending} pendiente(s) de revincular` : ''}`,
+    );
+    return restored;
+  }
+
+  /** Cuentas vinculadas, en línea y pendientes de volver a escanear. */
   counts() {
     let linked = 0;
-    try {
-      linked = fs
-        .readdirSync(config.paths.sessions, { withFileTypes: true })
-        .filter(
-          (entry) =>
-            entry.isDirectory() &&
-            fs.existsSync(path.join(config.paths.sessions, entry.name, 'creds.json')),
-        ).length;
-    } catch {
-      linked = 0;
+    let connected = 0;
+    let relink = 0;
+    for (const id of this.#storedIds()) {
+      const session = this.sessions.get(id);
+      if (session?.needsRelink) {
+        relink += 1;
+        continue;
+      }
+      linked += 1;
+      if (session?.state === SessionState.OPEN) connected += 1;
     }
-    const connected = [...this.sessions.values()].filter((s) => s.state === 'open').length;
-    return { linked, connected };
+    return { linked, connected, relink };
   }
 
   startCleanup() {

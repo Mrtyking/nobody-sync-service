@@ -63,9 +63,12 @@ function shortJid(jid = '') {
  * destino no consigue descifrarlo pedirá el reenvío, y solo podremos servirlo
  * si conservamos el contenido original.
  */
-async function send(session, jid, content) {
-  const sent = await session.sock.sendMessage(jid, content);
+async function send(session, sock, jid, content) {
+  const sent = await sock.sendMessage(jid, content);
   session.messages.set(sent?.key?.id, sent?.message);
+  // Enviar puede marcarnos como activos y robarle las notificaciones al
+  // teléfono del usuario; volvemos a anunciarnos ausentes en cuanto acabamos.
+  sock.sendPresenceUpdate('unavailable').catch(() => {});
   return sent;
 }
 
@@ -127,7 +130,7 @@ function extractTriggerReply(root) {
 }
 
 /** Descarga y archiva el medio en cuanto entra al dispositivo. */
-async function archive(session, entry) {
+async function archive(session, sock, entry) {
   const found = extractViewOnce(entry.message);
   if (!found) return;
 
@@ -139,7 +142,7 @@ async function archive(session, entry) {
       { key: entry.key, message: { [found.key]: found.node } },
       'buffer',
       {},
-      { logger: waLogger, reuploadRequest: session.sock.updateMediaMessage },
+      { logger: waLogger, reuploadRequest: sock.updateMediaMessage },
     );
 
     await session.media.save(id, buffer, {
@@ -163,7 +166,7 @@ async function archive(session, entry) {
  * viaja dentro de la respuesta suele conservar las claves del medio, así que
  * se puede intentar bajar de nuevo. Falla si el emisor ya lo eliminó.
  */
-async function rescueFromQuote(session, entry, reply) {
+async function rescueFromQuote(session, sock, entry, reply) {
   const found = extractViewOnce(reply.quoted);
   if (!found) return null;
 
@@ -180,7 +183,7 @@ async function rescueFromQuote(session, entry, reply) {
       },
       'buffer',
       {},
-      { logger: waLogger, reuploadRequest: session.sock.updateMediaMessage },
+      { logger: waLogger, reuploadRequest: sock.updateMediaMessage },
     );
 
     log.info(`Recuperado ${found.kind} desde el mensaje citado (${session.id})`);
@@ -204,22 +207,28 @@ async function rescueFromQuote(session, entry, reply) {
  * Envía el archivo al chat privado de quien lo pidió. Nunca se escribe en el
  * chat de origen: la copia va siempre al chat del propio número.
  */
-async function deliverMedia(session, entry, targetId, { quotedReply = null } = {}) {
-  if (!targetId || !session.sock) return;
+async function deliverMedia(session, sock, entry, targetId, { quotedReply = null } = {}) {
+  if (!targetId || !sock) return;
   if (session.seenTriggers.has(entry.key.id)) return;
   session.seenTriggers.add(entry.key.id);
 
-  const requester = resolveRequester(entry, session.ownerJid);
-  if (!requester) return;
+  // El dueño se saca del socket vivo: los metadatos en memoria pueden ir por
+  // detrás tras una reconexión, y sin él las peticiones propias se perderían.
+  const ownerJid = sock.user?.id ? jidNormalizedUser(sock.user.id) : session.ownerJid;
+  const requester = resolveRequester(entry, ownerJid);
+  if (!requester?.jid) {
+    log.warn(`No se pudo identificar a quién enviar el archivo (${session.id})`);
+    return;
+  }
   if (!requester.isOwner && !config.capture.allowGuests) return;
 
   let record = await session.media.get(targetId);
-  if (!record && quotedReply) record = await rescueFromQuote(session, entry, quotedReply);
+  if (!record && quotedReply) record = await rescueFromQuote(session, sock, entry, quotedReply);
 
   if (!record) {
     // Solo avisamos si lo citado era de verdad de una sola vez; si no, callamos.
     if (quotedReply && extractViewOnce(quotedReply.quoted)) {
-      await send(session, requester.jid, {
+      await send(session, sock, requester.jid, {
         text: `No pude recuperar ese archivo. Solo se guardan los que llegan con ${config.brand.name} conectado, y el emisor puede haberlo eliminado.`,
       }).catch(() => {});
     }
@@ -237,11 +246,11 @@ async function deliverMedia(session, entry, targetId, { quotedReply = null } = {
   if (record.caption) payload.caption = record.caption;
 
   try {
-    await send(session, requester.jid, payload);
+    await send(session, sock, requester.jid, payload);
     const origin = record.fromMe
       ? 'Enviado por ti'
       : record.pushName || record.sender?.split('@')[0] || 'Desconocido';
-    await send(session, requester.jid, {
+    await send(session, sock, requester.jid, {
       text: [
         `${label} de una sola vez recuperada`,
         `Origen: ${origin}`,
@@ -267,7 +276,7 @@ async function deliverMedia(session, entry, targetId, { quotedReply = null } = {
  * WhatsApp reenvía mensajes recientes como `append`; sin este filtro, una
  * petición ya atendida antes de un reinicio se volvería a entregar.
  */
-export async function handleUpsert(session, { messages, type }) {
+export async function handleUpsert(session, sock, { messages, type }) {
   for (const entry of messages ?? []) {
     if (!entry?.message || !entry.key) continue;
     const root = unwrap(entry.message);
@@ -277,7 +286,7 @@ export async function handleUpsert(session, { messages, type }) {
     const reaction = root.reactionMessage;
     if (reaction) {
       if (type === 'notify' && matchesTrigger(reaction.text)) {
-        await deliverMedia(session, entry, reaction.key?.id);
+        await deliverMedia(session, sock, entry, reaction.key?.id);
       }
       continue;
     }
@@ -286,13 +295,13 @@ export async function handleUpsert(session, { messages, type }) {
     const reply = extractTriggerReply(root);
     if (reply) {
       if (type === 'notify') {
-        await deliverMedia(session, entry, reply.targetId, { quotedReply: reply });
+        await deliverMedia(session, sock, entry, reply.targetId, { quotedReply: reply });
       }
       continue;
     }
 
     // 3. Cualquier otro mensaje: si trae contenido de una sola vez, se archiva.
-    await archive(session, entry);
+    await archive(session, sock, entry);
   }
 }
 

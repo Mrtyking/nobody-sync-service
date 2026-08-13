@@ -25,6 +25,7 @@ export async function collectStatus(client, session, { roundTrip = null } = {}) 
   const whatsapp = {
     state: session.state,
     linked: session.isLinked(),
+    needsRelink: session.needsRelink,
     online: session.state === SessionState.OPEN,
     phone: session.phone,
     ping: await session.ping(),
@@ -43,7 +44,13 @@ export async function collectStatus(client, session, { roundTrip = null } = {}) 
   };
 
   // Verde solo si las dos mitades responden; ámbar si Discord está y WhatsApp no.
-  const health = !discord.online ? 'down' : whatsapp.online ? 'ok' : whatsapp.linked ? 'warn' : 'idle';
+  const health = !discord.online
+    ? 'down'
+    : whatsapp.online
+      ? 'ok'
+      : whatsapp.needsRelink || whatsapp.linked
+        ? 'warn'
+        : 'idle';
 
   return { discord, whatsapp, system, health, at: Date.now() };
 }

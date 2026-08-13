@@ -48,9 +48,29 @@ de sesión) se resume en una línea, sin repetirse más de una vez cada 30 segun
 
 **Conexión permanente**
 La sesión se reconecta sola con retroceso exponencial (2 s → 30 s) ante cualquier caída, y
-todas las sesiones vinculadas se levantan de nuevo al arrancar el bot. Solo se detiene si
-WhatsApp cierra la sesión de verdad (códigos 401, 403, 405, sesión inválida), y en ese caso
-avisa por privado en Discord.
+todas las sesiones vinculadas se levantan de nuevo al arrancar el bot, escalonadas para no
+golpear a WhatsApp con todas a la vez.
+
+Solo deja de reintentar cuando el dispositivo pierde la autorización de verdad (401, 403, 405,
+411). El código 500 **no** cuenta como definitivo: WhatsApp lo devuelve también en cortes
+pasajeros, así que se reintenta y solo tras tres seguidos se da por perdida.
+
+En ningún caso se borran las credenciales por su cuenta. La sesión queda marcada como
+"pendiente de revincular", el usuario recibe un aviso por privado en Discord explicando qué
+pasó, y sus archivos guardados siguen intactos. La limpieza ocurre cuando él pide un código
+nuevo o pulsa Desconectar.
+
+**Varias cuentas a la vez**
+Cada usuario de Discord tiene su propia sesión, su carpeta de credenciales y su almacén de
+archivos, y son independientes: que una se caiga o haya que revincularla no afecta a las demás.
+Cada socket se numera internamente, de modo que un evento tardío de una conexión ya sustituida
+no puede dejar muda a la que está viva. Cuenta con unos 60–80 MB de memoria por cuenta
+conectada a la hora de elegir el plan del hosting.
+
+**Notificaciones en el teléfono**
+Un dispositivo vinculado que aparezca como activo hace que WhatsApp deje de avisar en el
+teléfono. El bot se anuncia siempre como no disponible: al conectar, cada cinco minutos, y de
+nuevo después de cada envío, que es cuando WhatsApp podría darlo por activo.
 
 **Rescate de "una sola vez"**
 El medio se descarga **en cuanto entra al dispositivo**, no al pedirlo: si se esperara a la

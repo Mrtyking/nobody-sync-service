@@ -35,6 +35,7 @@ const STATE_LABEL = {
   [SessionState.QR]: 'Esperando escaneo',
   [SessionState.OPEN]: 'Conectado',
   [SessionState.CLOSED]: 'Desconectado',
+  [SessionState.RELINK]: 'Hay que volver a escanear',
 };
 
 /** Panel público que deja `/setpanel` en el canal. */
@@ -164,6 +165,12 @@ function whatsappBlock(whatsapp) {
       `Activa desde · ${relative(whatsapp.since)}`,
       `Vinculada · ${relative(whatsapp.linkedAt)}`,
     );
+  } else if (whatsapp.needsRelink) {
+    lines.push(
+      `Número · **${maskPhone(whatsapp.phone)}**`,
+      `-# ${whatsapp.lastError ?? 'WhatsApp cerró la sesión.'}`,
+      '-# Tus archivos guardados siguen intactos. Pulsa Generar código QR para volver a vincular.',
+    );
   } else if (whatsapp.linked) {
     lines.push(
       `Número · **${maskPhone(whatsapp.phone)}**`,
@@ -181,6 +188,7 @@ function systemBlock(system, captures) {
     '**Servicio**',
     `Cuentas vinculadas · **${system.linked}**`,
     `Cuentas en línea · **${system.connected}**`,
+    ...(system.relink ? [`Pendientes de revincular · **${system.relink}**`] : []),
     `Archivos guardados · **${captures.stored}** · ${captures.size}`,
     `Entregas realizadas · **${captures.delivered}**`,
     `Memoria · **${humanSize(system.memory)}**`,

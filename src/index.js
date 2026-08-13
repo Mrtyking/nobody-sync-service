@@ -41,10 +41,15 @@ manager.on('open', (session) => {
   );
 });
 
-manager.on('logout', (session) => {
+manager.on('relink-required', (session, reason) => {
   notify(
     session.id,
-    `**${config.brand.name}**\nLa sesión de WhatsApp se cerró desde el teléfono. Genera un código nuevo en el panel cuando quieras volver a vincularla.`,
+    [
+      `**${config.brand.name}**`,
+      `Tu sesión de WhatsApp dejó de estar autorizada: ${reason.toLowerCase()}.`,
+      '',
+      'Tus archivos guardados siguen intactos. Pulsa **Generar código QR** en el panel para volver a vincular el dispositivo.',
+    ].join('\n'),
   );
 });
 
@@ -82,8 +87,16 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 client.on(Events.Error, (error) => log.error('Cliente de Discord', error));
-process.on('unhandledRejection', (error) => log.error('Promesa sin capturar', error));
-process.on('uncaughtException', (error) => log.error('Excepción sin capturar', error));
+
+// Con el mensaje suelto no hay forma de saber de dónde salió; la primera línea
+// de la pila basta para ubicarlo sin llenar la consola.
+function describe(error) {
+  const where = error?.stack?.split('\n')[1]?.trim();
+  return where ? `${error.message ?? error} · ${where}` : String(error?.message ?? error);
+}
+
+process.on('unhandledRejection', (error) => log.error('Promesa sin capturar', describe(error)));
+process.on('uncaughtException', (error) => log.error('Excepción sin capturar', describe(error)));
 
 let closing = false;
 async function shutdown(signal) {
