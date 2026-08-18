@@ -247,7 +247,7 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
     await send(session, sock, requester.jid, payload);
     // Mensaje limpio: tipo recuperado, identificador y la firma de la marca.
     await send(session, sock, requester.jid, {
-      text: `${label.recovered}\nID · #${record.code}\n\n${config.brand.tag}`,
+      text: `${label.recovered}\nID · #${record.code}\n\n${config.brand.name}`,
     });
     session.captures += 1;
     session.emit('capture', { ...record, to: requester.jid, isOwner: requester.isOwner });

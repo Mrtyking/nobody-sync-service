@@ -44,10 +44,6 @@ export const config = {
   },
   brand: {
     name: str('BRAND_NAME', 'Nobody Sync'),
-    // Firma que se estampa en los mensajes de WhatsApp. Por defecto la marca en
-    // negrita matemática; se deja aparte del nombre del dispositivo vinculado,
-    // que debe ir en texto normal.
-    tag: str('BRAND_TAG', '𝐍𝐨𝐛𝐨𝐝𝐲 𝐒𝐲𝐧𝐜'),
     color: color('PANEL_COLOR', 0x5865f2),
     // Ruta relativa a la raíz del proyecto (o absoluta) del GIF del panel.
     panelGif: str('PANEL_GIF', 'assets/nobody.gif'),
