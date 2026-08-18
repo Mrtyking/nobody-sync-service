@@ -154,28 +154,22 @@ En el panel de **Bots y aplicaciones**, runtime Node.js 20 o superior:
 
 ## Variables de entorno
 
-| Variable | Por defecto | Para qué sirve |
-| --- | --- | --- |
-| `DISCORD_TOKEN` | — | Token del bot. Obligatorio. |
-| `DISCORD_CLIENT_ID` | — | Application ID. Obligatorio. |
-| `DISCORD_GUILD_ID` | vacío | Registra los comandos solo en ese servidor, al instante. |
-| `BRAND_NAME` | `Nobody Sync` | Nombre que aparece en el panel y en el dispositivo vinculado. |
-| `PANEL_COLOR` | `#5865F2` | Color de la barra lateral del contenedor. |
-| `PANEL_GIF` | `assets/nobody.gif` | GIF de cabecera del panel. Ruta relativa o absoluta. |
-| `STATUS_OK_COLOR` | `#3BA55D` | Barra del estado cuando todo responde. |
-| `STATUS_WARN_COLOR` | `#F0B232` | Barra cuando WhatsApp está reconectando. |
-| `STATUS_DOWN_COLOR` | `#ED4245` | Barra cuando el servicio está caído. |
-| `QR_SIZE` | `1024` | Lado del PNG en píxeles (256–2048). |
-| `QR_MARGIN` | `2` | Margen del QR en módulos. |
-| `QR_DARK` / `QR_LIGHT` | `#0B0B0F` / `#FFFFFF` | Colores del código. Mantén el contraste alto. |
-| `QR_TIMEOUT_MS` | `60000` | Vida de cada código antes de renovarse. |
-| `MEDIA_TTL_HOURS` | `24` | Horas que se guardan los archivos rescatados. |
-| `TRIGGER_EMOJIS` | vacío | Emojis que activan el envío. **Vacío = cualquiera** (recomendado). |
-| `LOG_WEBHOOK_URL` | vacío | Webhook de Discord para el registro de rescates. Secreto. |
-| `ALLOW_GUEST_REACTIONS` | `true` | Permite que otros participantes reciban su copia. |
-| `NOTIFY_CAPTURES` | `true` | Aviso por DM en Discord con cada rescate. |
-| `DATA_DIR` | `./data` | Carpeta persistente de sesiones y archivos. |
-| `BAILEYS_LOG_LEVEL` | `silent` | `silent`, `error`, `warn`, `info` o `debug`. |
+Lo único que tienes que poner:
+
+| Variable | Para qué sirve |
+| --- | --- |
+| `DISCORD_TOKEN` | Token del bot. **Obligatorio.** |
+| `DISCORD_CLIENT_ID` | Application ID. **Obligatorio.** |
+| `DISCORD_GUILD_ID` | Tu servidor: hace que `/setpanel` aparezca al instante. Vacío = hasta 1 h. |
+| `TRIGGER_EMOJIS` | Déjalo **vacío** para aceptar cualquier emoji. Si pones alguno, solo esos disparan. |
+| `LOG_WEBHOOK_URL` | Webhook de Discord para el registro de rescates. Es un secreto. Vacío = desactivado. |
+
+El resto son opcionales y ya funcionan con sus valores por defecto: apariencia
+(`BRAND_NAME`, `PANEL_COLOR`, `PANEL_GIF`, `STATUS_*_COLOR`), código QR (`QR_SIZE`,
+`QR_MARGIN`, `QR_DARK`, `QR_LIGHT`, `QR_TIMEOUT_MS`), comportamiento
+(`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`, `MEDIA_TTL_HOURS`), almacenamiento
+(`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`). Están descritas y comentadas en
+[`.env.example`](.env.example); descomenta solo la que quieras cambiar.
 
 ---
 
