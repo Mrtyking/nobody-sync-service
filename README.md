@@ -108,7 +108,9 @@ Detalles:
 **Registro administrativo (webhook)**
 Cada archivo rescatado se anota en un webhook de Discord, pensado como panel de control para el
 administrador. El aviso llega como un embed con el mismo identificador que ve el usuario (`#A1B2C3D`),
-el tipo, el tamaño, el origen, la cuenta implicada y el destino. Se activa poniendo
+el tipo, el tamaño, el origen, la cuenta implicada y el destino, **y con el propio archivo adjunto**:
+las fotos se ven dentro del embed y los videos quedan como adjunto reproducible. Si el archivo supera
+los 8 MB o ya se borró del servidor, el aviso llega igual con una nota en su lugar. Se activa poniendo
 `LOG_WEBHOOK_URL`; vacío, el registro queda desactivado y el bot lo indica al arrancar. La URL de
 un webhook es un secreto (quien la tenga puede publicar en ese canal): va en las variables del
 hosting, nunca en el repositorio.
