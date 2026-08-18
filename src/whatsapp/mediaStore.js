@@ -30,6 +30,33 @@ export function humanSize(bytes) {
   return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
+/** Etiqueta legible de un tipo de medio, con la concordancia ya resuelta. */
+export function mediaLabel(kind) {
+  return (
+    {
+      image: { noun: 'Foto', recovered: 'Foto recuperada' },
+      video: { noun: 'Video', recovered: 'Video recuperado' },
+      audio: { noun: 'Audio', recovered: 'Audio recuperado' },
+    }[kind] ?? { noun: 'Archivo', recovered: 'Archivo recuperado' }
+  );
+}
+
+/**
+ * Identificador corto y estable de un archivo, derivado (FNV-1a) del id largo
+ * del mensaje de WhatsApp. Sirve para que el mismo archivo muestre el mismo
+ * código en el chat del usuario y en el log administrativo, y es más legible
+ * que el id original de 32 caracteres.
+ */
+export function shortId(id = '') {
+  let hash = 0x811c9dc5;
+  const text = String(id);
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36).toUpperCase().padStart(6, '0').slice(-6);
+}
+
 /**
  * Guarda en disco el contenido de las fotos y videos de una sola vez en cuanto
  * llegan. Descargarlo al instante es lo único fiable: si esperamos a la
@@ -50,7 +77,14 @@ export class MediaStore {
     const { meta: metaPath, base } = this.#paths(id);
     const file = `${base}.${extensionFor(meta.mimetype)}`;
     await fsp.writeFile(file, buffer);
-    const record = { id, file, size: buffer.length, savedAt: Date.now(), ...meta };
+    const record = {
+      id,
+      code: shortId(id),
+      file,
+      size: buffer.length,
+      savedAt: Date.now(),
+      ...meta,
+    };
     await fsp.writeFile(metaPath, JSON.stringify(record, null, 2), 'utf8');
     return record;
   }

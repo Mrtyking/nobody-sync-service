@@ -4,6 +4,7 @@ import { installConsoleFilter } from './utils/console.js';
 import { createLogger, log } from './utils/logger.js';
 import { registerCommands } from './discord/commands.js';
 import { routeInteraction } from './discord/interactions.js';
+import { postRecovery, webhookEnabled } from './discord/webhook.js';
 import { manager } from './whatsapp/manager.js';
 
 const dm = createLogger('aviso');
@@ -60,19 +61,45 @@ manager.on('replaced', (session) => {
   );
 });
 
-if (config.capture.notify) {
-  manager.on('capture', (session, record) => {
+manager.on('capture', (session, record) => {
+  // Registro administrativo: cada rescate, con su id, al webhook de Discord.
+  postRecovery({
+    discordUserId: session.id,
+    accountPhone: session.phone,
+    record,
+    to: record.to,
+    isOwner: record.isOwner,
+  });
+
+  if (config.capture.notify) {
     const kind = { image: 'Foto', video: 'Video', audio: 'Audio' }[record.kind] ?? 'Archivo';
     const destino = record.isOwner ? 'tu chat contigo mismo' : `el chat de +${record.to.split('@')[0]}`;
-    notify(session.id, `**${config.brand.name}**\n${kind} de una sola vez guardada y enviada a ${destino}.`);
-  });
-}
+    notify(
+      session.id,
+      `**${config.brand.name}**\n${kind} #${record.code} guardada y enviada a ${destino}.`,
+    );
+  }
+});
 
 client.once(Events.ClientReady, async (ready) => {
   log.info(`Conectado a Discord como ${ready.user.tag}`);
   if (config.logLevel !== 'debug') {
     log.info('Avisos internos de cifrado resumidos · BAILEYS_LOG_LEVEL=debug para verlos enteros');
   }
+  // Aviso claro si los disparadores están limitados: es la causa más común de
+  // "solo funciona un emoji".
+  if (config.capture.triggers.length) {
+    log.warn(
+      `Disparadores limitados a: ${config.capture.triggers.join(' ')} · deja TRIGGER_EMOJIS vacío para aceptar cualquier emoji`,
+    );
+  } else {
+    log.info('Cualquier emoji activa el rescate (reacción o respuesta)');
+  }
+  log.info(
+    webhookEnabled()
+      ? 'Registro administrativo activo · cada rescate se envía al webhook'
+      : 'Sin webhook de registro · define LOG_WEBHOOK_URL para activarlo',
+  );
   try {
     await registerCommands();
   } catch (error) {

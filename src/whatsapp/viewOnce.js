@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { createLogger, waLogger } from '../utils/logger.js';
 import { downloadMediaMessage, jidNormalizedUser } from './baileys.js';
+import { mediaLabel } from './mediaStore.js';
 
 const log = createLogger('viewonce');
 
@@ -48,10 +49,6 @@ export function extractViewOnce(message) {
   return null;
 }
 
-function describeType(kind) {
-  return { image: 'Foto', video: 'Video', audio: 'Audio' }[kind] ?? 'Archivo';
-}
-
 /** Número recortado para los logs: no hace falta volcarlo entero. */
 function shortJid(jid = '') {
   const number = jid.split('@')[0];
@@ -72,29 +69,30 @@ async function send(session, sock, jid, content) {
   return sent;
 }
 
-// Un emoji "de verdad": un pictograma, una bandera (dos indicadores
+// Un emoji "de verdad": cualquier pictograma, una bandera (indicadores
 // regionales) o un teclado numérico. Las banderas y los teclados no son
 // Extended_Pictographic, por eso hay que nombrarlos aparte.
 const HAS_EMOJI = /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{20E3}]/u;
-// Emoji_Component cubre el ZWJ, el selector de variación, los tonos de piel,
-// los indicadores regionales y los dígitos de los teclados.
-const ONLY_EMOJI = /^[\p{Extended_Pictographic}\p{Emoji_Component}\s]+$/u;
 
-/**
- * Un texto formado solo por emojis. Se exige al menos un emoji real para que
- * un "123" o un simple espacio no cuenten como disparador.
- */
-function isEmojiOnly(text) {
-  const trimmed = text.trim();
-  if (!trimmed || !HAS_EMOJI.test(trimmed)) return false;
-  return ONLY_EMOJI.test(trimmed);
+/** ¿El texto contiene al menos un emoji? */
+function hasEmoji(text) {
+  return HAS_EMOJI.test(text);
 }
 
-/** ¿Este texto activa el rescate? Vacío en la config = cualquier emoji. */
+/**
+ * ¿Este texto activa el rescate?
+ *
+ * Con TRIGGER_EMOJIS vacío (lo recomendado) basta con que la respuesta lleve
+ * cualquier emoji: la gente responde con el que le sugiere lo que vio —
+ * risa, corazón, sorpresa— y todos deben valer. Solo si se configuran emojis
+ * concretos se restringe a esos.
+ */
 function matchesTrigger(text) {
   if (!text) return false; // string vacío = reacción retirada
-  if (config.capture.triggers.length) return config.capture.triggers.includes(text.trim());
-  return isEmojiOnly(text);
+  if (config.capture.triggers.length) {
+    return config.capture.triggers.some((emoji) => text.includes(emoji));
+  }
+  return hasEmoji(text);
 }
 
 /** Quién pidió el archivo, resolviendo los JID nuevos (@lid) cuando existen. */
@@ -235,7 +233,7 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
     return;
   }
 
-  const label = describeType(record.kind);
+  const label = mediaLabel(record.kind);
   const payload =
     record.kind === 'video'
       ? { video: { url: record.file }, mimetype: record.mimetype || 'video/mp4' }
@@ -247,22 +245,14 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
 
   try {
     await send(session, sock, requester.jid, payload);
-    const origin = record.fromMe
-      ? 'Enviado por ti'
-      : record.pushName || record.sender?.split('@')[0] || 'Desconocido';
+    // Mensaje limpio: solo el tipo recuperado y su identificador.
     await send(session, sock, requester.jid, {
-      text: [
-        `${label} de una sola vez recuperada`,
-        `Origen: ${origin}`,
-        `Fecha: ${new Date(record.sentAt).toLocaleString('es-ES')}`,
-        '',
-        config.brand.name,
-      ].join('\n'),
+      text: `${label.recovered}\nID · #${record.code}`,
     });
     session.captures += 1;
     session.emit('capture', { ...record, to: requester.jid, isOwner: requester.isOwner });
     log.info(
-      `Entregado ${record.kind} a ${requester.isOwner ? 'su propio chat' : shortJid(requester.jid)}`,
+      `Entregado ${record.kind} #${record.code} a ${requester.isOwner ? 'su propio chat' : shortJid(requester.jid)}`,
     );
   } catch (error) {
     log.warn('No se pudo entregar el archivo', error);
@@ -305,4 +295,4 @@ export async function handleUpsert(session, sock, { messages, type }) {
   }
 }
 
-export const __test = { isEmojiOnly, matchesTrigger, extractTriggerReply };
+export const __test = { hasEmoji, matchesTrigger, extractTriggerReply };

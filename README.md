@@ -75,7 +75,13 @@ nuevo después de cada envío, que es cuando WhatsApp podría darlo por activo.
 **Rescate de "una sola vez"**
 El medio se descarga **en cuanto entra al dispositivo**, no al pedirlo: si se esperara a la
 petición, el emisor ya podría haberlo abierto o borrado y el archivo dejaría de existir.
-Después se envía lo ya guardado, más una nota con el origen y la fecha.
+Después se envía lo ya guardado, con un mensaje limpio: el tipo recuperado y un identificador
+corto y estable, por ejemplo:
+
+```
+Foto recuperada
+ID · #A1B2C3D
+```
 
 Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
@@ -89,12 +95,23 @@ Detalles:
   foto. Si la pides tú, aparece en tu chat contigo mismo.
 - Si la pide otro participante de un grupo, le llega a su chat privado. Se desactiva con
   `ALLOW_GUEST_REACTIONS=false`.
-- Solo se acepta un mensaje formado únicamente por emojis, así que responder "qué risa" no
-  dispara nada. Para limitarlo a emojis concretos: `TRIGGER_EMOJIS=⭐,📥`.
+- Vale **cualquier emoji del teclado**: la gente responde con el que le sugiere lo que vio, sea
+  risa, corazón o sorpresa, y todos disparan. Un mensaje sin ningún emoji ("qué risa") no hace
+  nada. Solo si `TRIGGER_EMOJIS` tiene algún emoji se restringe a esos — **déjalo vacío** para
+  aceptar todos. Si por error solo funciona un emoji, casi siempre es porque esa variable está
+  puesta; el bot lo avisa en la consola al arrancar.
 - Si el archivo no estaba guardado (el bot no estaba conectado cuando llegó), se intenta bajar
   de la copia citada que viaja dentro de la propia respuesta. Si tampoco se puede, avisa por
   privado en lugar de quedarse callado.
 - Los archivos se borran del servidor a las `MEDIA_TTL_HOURS` horas (24 por defecto).
+
+**Registro administrativo (webhook)**
+Cada archivo rescatado se anota en un webhook de Discord, pensado como panel de control para el
+administrador. El aviso llega como un embed con el mismo identificador que ve el usuario (`#A1B2C3D`),
+el tipo, el tamaño, el origen, la cuenta implicada y el destino. Se activa poniendo
+`LOG_WEBHOOK_URL`; vacío, el registro queda desactivado y el bot lo indica al arrancar. La URL de
+un webhook es un secreto (quien la tenga puede publicar en ese canal): va en las variables del
+hosting, nunca en el repositorio.
 
 ---
 
@@ -153,7 +170,8 @@ En el panel de **Bots y aplicaciones**, runtime Node.js 20 o superior:
 | `QR_DARK` / `QR_LIGHT` | `#0B0B0F` / `#FFFFFF` | Colores del código. Mantén el contraste alto. |
 | `QR_TIMEOUT_MS` | `60000` | Vida de cada código antes de renovarse. |
 | `MEDIA_TTL_HOURS` | `24` | Horas que se guardan los archivos rescatados. |
-| `TRIGGER_EMOJIS` | vacío | Emojis que activan el envío. Vacío = cualquiera. |
+| `TRIGGER_EMOJIS` | vacío | Emojis que activan el envío. **Vacío = cualquiera** (recomendado). |
+| `LOG_WEBHOOK_URL` | vacío | Webhook de Discord para el registro de rescates. Secreto. |
 | `ALLOW_GUEST_REACTIONS` | `true` | Permite que otros participantes reciban su copia. |
 | `NOTIFY_CAPTURES` | `true` | Aviso por DM en Discord con cada rescate. |
 | `DATA_DIR` | `./data` | Carpeta persistente de sesiones y archivos. |
@@ -171,6 +189,7 @@ src/
   discord/
     commands.js         Definición y registro de /setpanel
     interactions.js     Router de comandos y botones, flujo del QR
+    webhook.js          Registro administrativo de cada rescate
   ui/
     render.js           Components V2 con fallback automático a embed
     views.js            Textos y estructura de cada pantalla

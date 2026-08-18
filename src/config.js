@@ -76,6 +76,9 @@ export const config = {
     sessions: path.join(dataDir, 'sessions'),
     media: path.join(dataDir, 'media'),
   },
+  // Webhook de Discord para el registro administrativo de cada rescate. Es un
+  // secreto: se lee del entorno y nunca se guarda en el repositorio.
+  logWebhook: str('LOG_WEBHOOK_URL'),
   logLevel: str('BAILEYS_LOG_LEVEL', 'silent'),
 };
 
