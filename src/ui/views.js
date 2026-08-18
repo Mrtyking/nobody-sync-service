@@ -68,6 +68,56 @@ export function panelView() {
   };
 }
 
+/** Términos de uso que deja `/terms` en el canal. Solo informativo. */
+export function termsView() {
+  const brand = config.brand.name;
+  return {
+    color: COLOR,
+    title: 'Términos de uso',
+    subtitle: brand,
+    body: `Al vincular tu cuenta de WhatsApp y usar ${brand} aceptas estos términos. Léelos con calma.`,
+    blocks: [
+      {
+        text: [
+          '**1 · El servicio**',
+          `${brand} vincula tu WhatsApp mediante un código QR y recupera las fotos y videos de una sola vez cuando reaccionas con un emoji, enviándotelos a tu chat privado.`,
+        ].join('\n'),
+      },
+      {
+        text: [
+          '**2 · Uso responsable**',
+          'Eres el único responsable del uso que hagas del bot y del contenido que recuperes. Úsalo solo con material propio o con permiso de quien lo envió. Queda prohibido usarlo para acosar, extorsionar, difundir contenido íntimo sin consentimiento o para cualquier fin ilegal.',
+        ].join('\n'),
+      },
+      {
+        text: [
+          '**3 · Privacidad y datos**',
+          'Para mantener la sesión activa se guardan las credenciales de tu WhatsApp y una copia temporal de los archivos recuperados en el servidor. Los archivos se borran solos pasado el tiempo configurado, y puedes eliminar todo cuando quieras con el botón Desconectar del panel.',
+        ].join('\n'),
+      },
+      {
+        text: [
+          '**4 · Registro**',
+          'Cada archivo recuperado queda registrado para la administración del servicio, incluyendo su identificador, su tipo y el propio archivo. Usa el bot solo si estás de acuerdo con ello.',
+        ].join('\n'),
+      },
+      {
+        text: [
+          '**5 · Sin afiliación**',
+          `${brand} no está afiliado ni respaldado por WhatsApp ni por Meta. Es una herramienta independiente que usa una conexión no oficial, por lo que tu cuenta de WhatsApp podría ser limitada o bloqueada. Lo usas bajo tu propio riesgo.`,
+        ].join('\n'),
+      },
+      {
+        text: [
+          '**6 · Aceptación**',
+          'Vincular la cuenta y usar el bot implica que aceptas estos términos. Si no estás de acuerdo, no lo vincules. Estos términos pueden cambiar; el uso continuado supone aceptar la versión vigente.',
+        ].join('\n'),
+      },
+    ],
+    footer: brand,
+  };
+}
+
 export function preparingView() {
   return {
     color: COLOR,
@@ -220,6 +270,41 @@ export function statusView(status, session, captures) {
     ],
     actions: [{ id: IDS.statusRefresh, label: 'Actualizar', style: ButtonStyle.Secondary }],
     footer: `Medido ${new Date(status.at).toLocaleTimeString('es-ES')} · Los datos se toman en el momento de pulsar`,
+  };
+}
+
+/** Panel público de estado del servicio que publica y refresca `/status`. */
+export function serviceStatusView(status) {
+  const { discord, whatsapp, system } = status;
+  const discordBlock = [
+    '**Discord**',
+    `Conexión · **${discord.online ? 'En línea' : 'Desconectado'}**`,
+    `Latencia · **${ms(discord.ping)}**`,
+    `Servidores · **${discord.guilds}**`,
+    `Encendido · ${relative(discord.since)}`,
+  ].join('\n');
+
+  const waBlock = [
+    '**WhatsApp**',
+    `Cuentas en línea · **${whatsapp.connected} / ${whatsapp.linked}**`,
+    ...(whatsapp.online ? [`Latencia media · **${ms(whatsapp.ping)}**`] : []),
+    ...(whatsapp.relink ? [`Pendientes de revincular · **${whatsapp.relink}**`] : []),
+  ].join('\n');
+
+  const systemBlock = [
+    '**Servicio**',
+    `Memoria · **${humanSize(system.memory)}**`,
+    `Node · **${system.node}**`,
+    `Arrancado · ${relative(system.since)}`,
+  ].join('\n');
+
+  return {
+    color: HEALTH_COLOR[status.health] ?? COLOR,
+    title: 'Estado del sistema',
+    subtitle: HEALTH_TITLE[status.health] ?? '',
+    body: discordBlock,
+    blocks: [{ text: waBlock }, { text: systemBlock }],
+    footer: `${config.brand.name} · Actualizado <t:${Math.floor(status.at / 1000)}:R>`,
   };
 }
 

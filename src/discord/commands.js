@@ -19,18 +19,35 @@ function guildOnly(command) {
   return command.setDMPermission(false);
 }
 
+/** Opción de canal reutilizable para los comandos de publicación. */
+function channelOption(option) {
+  return option
+    .setName('canal')
+    .setDescription('Canal donde publicar. Por defecto, el canal actual.')
+    .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+    .setRequired(false);
+}
+
 export const commands = [
   guildOnly(
     new SlashCommandBuilder()
       .setName('setpanel')
       .setDescription('Publica el panel de vinculación de WhatsApp en un canal.')
-      .addChannelOption((option) =>
-        option
-          .setName('canal')
-          .setDescription('Canal donde publicar el panel. Por defecto, el canal actual.')
-          .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
-          .setRequired(false),
-      )
+      .addChannelOption(channelOption)
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  ),
+  guildOnly(
+    new SlashCommandBuilder()
+      .setName('terms')
+      .setDescription('Publica los términos de uso en un canal.')
+      .addChannelOption(channelOption)
+      .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+  ),
+  guildOnly(
+    new SlashCommandBuilder()
+      .setName('status')
+      .setDescription('Publica un panel de estado que se actualiza solo.')
+      .addChannelOption(channelOption)
       .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
   ),
 ].map((command) => command.toJSON());

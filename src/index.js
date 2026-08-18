@@ -5,6 +5,7 @@ import { createLogger, log } from './utils/logger.js';
 import { registerCommands } from './discord/commands.js';
 import { routeInteraction } from './discord/interactions.js';
 import { postRecovery, webhookEnabled } from './discord/webhook.js';
+import { startStatusBoard, stopStatusBoard } from './discord/statusBoard.js';
 import { manager } from './whatsapp/manager.js';
 
 const dm = createLogger('aviso');
@@ -107,6 +108,8 @@ client.once(Events.ClientReady, async (ready) => {
   }
   manager.startCleanup();
   await manager.restoreAll();
+  // Refresca cada minuto los paneles públicos de `/status` que hubiera guardados.
+  startStatusBoard(client);
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
@@ -130,6 +133,7 @@ async function shutdown(signal) {
   if (closing) return;
   closing = true;
   log.info(`Cerrando (${signal})`);
+  stopStatusBoard();
   await manager.shutdown();
   await client.destroy();
   process.exit(0);

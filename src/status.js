@@ -54,3 +54,45 @@ export async function collectStatus(client, session, { roundTrip = null } = {}) 
 
   return { discord, whatsapp, system, health, at: Date.now() };
 }
+
+/**
+ * Estado del servicio completo (no de un usuario concreto): lo que se publica
+ * en el canal público con `/status`. Agrega todas las cuentas y mide la
+ * latencia media de las que están en línea.
+ */
+export async function collectServiceStatus(client) {
+  const wsPing = Math.round(client.ws?.ping ?? -1);
+  const discord = {
+    online: client.isReady?.() ?? false,
+    ping: wsPing >= 0 ? wsPing : null,
+    guilds: client.guilds?.cache?.size ?? 0,
+    since: client.readyTimestamp ?? null,
+  };
+
+  const counts = manager.counts();
+  const onlineSessions = [...manager.sessions.values()].filter((s) => s.state === SessionState.OPEN);
+  let ping = null;
+  if (onlineSessions.length) {
+    const pings = (await Promise.all(onlineSessions.map((s) => s.ping()))).filter(
+      (value) => typeof value === 'number',
+    );
+    if (pings.length) ping = Math.round(pings.reduce((a, b) => a + b, 0) / pings.length);
+  }
+
+  const memory = process.memoryUsage().rss;
+  const system = {
+    memory,
+    memoryTotal: os.totalmem(),
+    node: process.version,
+    since: processStartedAt(),
+  };
+
+  const whatsapp = { ...counts, ping, online: counts.connected > 0 };
+  const health = !discord.online
+    ? 'down'
+    : counts.linked > 0 && counts.connected < counts.linked
+      ? 'warn'
+      : 'ok';
+
+  return { discord, whatsapp, system, health, at: Date.now() };
+}

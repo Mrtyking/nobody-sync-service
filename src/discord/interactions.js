@@ -6,7 +6,8 @@ import * as views from '../ui/views.js';
 import { IDS } from '../ui/views.js';
 import { manager } from '../whatsapp/manager.js';
 import { SessionState } from '../whatsapp/session.js';
-import { collectStatus } from '../status.js';
+import { collectServiceStatus, collectStatus } from '../status.js';
+import { addStatusPanel } from './statusBoard.js';
 import { qrFileName, renderQr } from '../utils/qr.js';
 
 const log = createLogger('discord');
@@ -14,23 +15,29 @@ const log = createLogger('discord');
 /** Flujos de vinculación abiertos, uno por usuario. */
 const flows = new Map();
 
-/* ─── /setpanel ──────────────────────────────────────────────────────────── */
+/* ─── Publicación en canal (/setpanel, /terms, /status) ──────────────────── */
 
-async function handleSetPanel(interaction) {
+/**
+ * Valida el canal y los permisos, publica la vista y responde en privado.
+ * Devuelve el mensaje publicado (o null si no se pudo), para que quien llama
+ * pueda, por ejemplo, guardarlo y refrescarlo.
+ */
+async function publishToChannel(interaction, view, okMessage) {
   const channel = interaction.options.getChannel('canal') ?? interaction.channel;
 
   if (!channel || ![ChannelType.GuildText, ChannelType.GuildAnnouncement].includes(channel.type)) {
-    return deliver(
+    await deliver(
       interaction,
       'reply',
       views.noticeView('Canal no válido', 'Elige un canal de texto del servidor.', { error: true }),
     );
+    return null;
   }
 
   const me = await interaction.guild.members.fetchMe();
   const perms = channel.permissionsFor(me);
   if (!perms?.has(PermissionFlagsBits.ViewChannel) || !perms.has(PermissionFlagsBits.SendMessages)) {
-    return deliver(
+    await deliver(
       interaction,
       'reply',
       views.noticeView(
@@ -39,14 +46,33 @@ async function handleSetPanel(interaction) {
         { error: true },
       ),
     );
+    return null;
   }
 
-  await deliver(channel, 'send', views.panelView());
-  return deliver(
+  const message = await deliver(channel, 'send', view);
+  await deliver(interaction, 'reply', views.noticeView('Publicado', `${okMessage} ${channel}.`));
+  return message;
+}
+
+async function handleSetPanel(interaction) {
+  return publishToChannel(interaction, views.panelView(), 'El panel ya está disponible en');
+}
+
+async function handleSetTerms(interaction) {
+  return publishToChannel(interaction, views.termsView(), 'Los términos ya están publicados en');
+}
+
+async function handleSetStatus(interaction) {
+  const status = await collectServiceStatus(interaction.client);
+  const message = await publishToChannel(
     interaction,
-    'reply',
-    views.noticeView('Panel publicado', `El panel ya está disponible en ${channel}.`),
+    views.serviceStatusView(status),
+    'El estado ya está disponible y se actualizará solo en',
   );
+  // Guardar el mensaje permite refrescarlo cada minuto sin volver a publicar.
+  if (message?.id && message.channelId) {
+    await addStatusPanel(message.channelId, message.id);
+  }
 }
 
 /* ─── Botón: generar QR ──────────────────────────────────────────────────── */
@@ -252,10 +278,17 @@ const BUTTONS = {
   [IDS.cancel]: handleCancel,
 };
 
+const COMMANDS = {
+  setpanel: handleSetPanel,
+  terms: handleSetTerms,
+  status: handleSetStatus,
+};
+
 export async function routeInteraction(interaction) {
   try {
-    if (interaction.isChatInputCommand() && interaction.commandName === 'setpanel') {
-      return await handleSetPanel(interaction);
+    if (interaction.isChatInputCommand()) {
+      const handler = COMMANDS[interaction.commandName];
+      if (handler) return await handler(interaction);
     }
     if (interaction.isButton()) {
       const handler = BUTTONS[interaction.customId];

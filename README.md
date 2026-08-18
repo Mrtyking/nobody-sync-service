@@ -18,6 +18,16 @@ Publica un contenedor con un GIF de cabecera y tres botones **dentro** del propi
 Si la versión de discord.js o del gateway no admite Components V2, el panel se degrada solo a
 un embed clásico. El GIF se cambia con `PANEL_GIF`; por defecto usa `assets/nobody.gif`.
 
+Los tres comandos publican en el canal indicado (o el actual) y requieren permiso de
+**Gestionar servidor**:
+
+- **`/setpanel [canal]`** — el panel de vinculación.
+- **`/terms [canal]`** — los términos de uso, como contenedor Components V2 limpio.
+- **`/status [canal]`** — un panel público de estado del servicio que **se actualiza solo cada
+  minuto**: latencia de Discord, cuentas en línea, memoria y tiempo encendido, con la barra de
+  color según la salud. El mensaje se recuerda en disco y el bot lo sigue refrescando tras un
+  reinicio.
+
 **Estado del sistema**
 El botón de estado no muestra un texto fijo: mide en el momento de pulsarlo la latencia del
 websocket de Discord, el tiempo de respuesta real de la interacción y la latencia contra los
@@ -202,6 +212,7 @@ src/
   discord/
     commands.js         Definición y registro de /setpanel
     interactions.js     Router de comandos y botones, flujo del QR
+    statusBoard.js      Panel público de estado que se refresca solo
     webhook.js          Registro administrativo de cada rescate
   ui/
     render.js           Components V2 con fallback automático a embed
