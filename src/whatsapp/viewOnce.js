@@ -1,9 +1,27 @@
 import { config } from '../config.js';
 import { createLogger, waLogger } from '../utils/logger.js';
-import { downloadMediaMessage, jidNormalizedUser } from './baileys.js';
+import { downloadMediaMessage, jidNormalizedUser, prepareWAMessageMedia } from './baileys.js';
 import { mediaLabel } from './mediaStore.js';
 
 const log = createLogger('viewonce');
+
+// Margen amplio para subir cualquier video, por pesado que sea, sin cortarse.
+const UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+const DEFAULT_MIME = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/ogg; codecs=opus' };
+
+/**
+ * Contenido del mensaje a enviar. `jpegThumbnail: null` evita que Baileys
+ * intente generar la miniatura con ffmpeg (que no está en el hosting y bloquea
+ * la subida). La misma forma vale para pre-subir y para entregar, de modo que
+ * comparten clave de caché y la segunda vez no se vuelve a subir.
+ */
+function mediaPayload(record) {
+  const mimetype = record.mimetype || DEFAULT_MIME[record.kind] || 'application/octet-stream';
+  if (record.kind === 'video') return { video: { url: record.file }, mimetype, jpegThumbnail: null };
+  if (record.kind === 'audio') return { audio: { url: record.file }, mimetype, ptt: true };
+  return { image: { url: record.file }, mimetype, jpegThumbnail: null };
+}
 
 const MEDIA_KEYS = ['imageMessage', 'videoMessage', 'audioMessage'];
 
@@ -60,13 +78,38 @@ function shortJid(jid = '') {
  * destino no consigue descifrarlo pedirá el reenvío, y solo podremos servirlo
  * si conservamos el contenido original.
  */
-async function send(session, sock, jid, content) {
-  const sent = await sock.sendMessage(jid, content);
+async function send(session, sock, jid, content, options = {}) {
+  const sent = await sock.sendMessage(jid, content, options);
   session.messages.set(sent?.key?.id, sent?.message);
   // Enviar puede marcarnos como activos y robarle las notificaciones al
   // teléfono del usuario; volvemos a anunciarnos ausentes en cuanto acabamos.
   sock.sendPresenceUpdate('unavailable').catch(() => {});
   return sent;
+}
+
+/**
+ * Pre-sube el archivo a WhatsApp en segundo plano, nada más recibirlo. Así el
+ * trabajo pesado (cifrar + subir) ocurre antes de que nadie reaccione, y la
+ * entrega luego es casi instantánea. Es una optimización: si falla, la entrega
+ * sube el archivo de forma normal. Solo tiene sentido para video (lo pesado).
+ */
+function preUpload(session, sock, record) {
+  if (record.kind !== 'video') return;
+  if (!sock?.waUploadToServer || !session.mediaCache) return;
+  if (session.pendingUploads.has(record.id)) return;
+
+  const promise = prepareWAMessageMedia(mediaPayload(record), {
+    upload: sock.waUploadToServer,
+    mediaCache: session.mediaCache,
+    mediaUploadTimeoutMs: UPLOAD_TIMEOUT_MS,
+    logger: waLogger,
+    options: {},
+  })
+    .then(() => log.info(`Video #${record.code} pre-subido y listo para entregar`))
+    .catch((error) => log.debug(`Pre-subida de #${record.code} fallida (se subirá al pedirlo)`, error))
+    .finally(() => session.pendingUploads.delete(record.id));
+
+  session.pendingUploads.set(record.id, promise);
 }
 
 // Un emoji "de verdad": cualquier pictograma, una bandera (indicadores
@@ -143,7 +186,7 @@ async function archive(session, sock, entry) {
       { logger: waLogger, reuploadRequest: sock.updateMediaMessage },
     );
 
-    await session.media.save(id, buffer, {
+    const record = await session.media.save(id, buffer, {
       kind: found.kind,
       mimetype: found.node.mimetype ?? '',
       caption: found.node.caption ?? '',
@@ -154,6 +197,8 @@ async function archive(session, sock, entry) {
       sentAt: Number(entry.messageTimestamp ?? 0) * 1000 || Date.now(),
     });
     log.info(`Archivado ${found.kind} de una sola vez (${session.id})`);
+    // Adelanta la subida para que la entrega sea instantánea al reaccionar.
+    preUpload(session, sock, record);
   } catch (error) {
     log.warn(`No se pudo archivar el medio ${id}`, error);
   }
@@ -185,7 +230,7 @@ async function rescueFromQuote(session, sock, entry, reply) {
     );
 
     log.info(`Recuperado ${found.kind} desde el mensaje citado (${session.id})`);
-    return session.media.save(reply.targetId, buffer, {
+    return await session.media.save(reply.targetId, buffer, {
       kind: found.kind,
       mimetype: found.node.mimetype ?? '',
       caption: found.node.caption ?? '',
@@ -234,17 +279,15 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   }
 
   const label = mediaLabel(record.kind);
-  const payload =
-    record.kind === 'video'
-      ? { video: { url: record.file }, mimetype: record.mimetype || 'video/mp4' }
-      : record.kind === 'audio'
-        ? { audio: { url: record.file }, mimetype: record.mimetype || 'audio/ogg; codecs=opus', ptt: true }
-        : { image: { url: record.file }, mimetype: record.mimetype || 'image/jpeg' };
-
+  const payload = mediaPayload(record);
   if (record.caption) payload.caption = record.caption;
 
+  // Si el video se está pre-subiendo, esperamos a que termine: así la entrega
+  // acierta en la caché y sale al instante en vez de subirlo otra vez.
+  await session.pendingUploads.get(targetId)?.catch(() => {});
+
   try {
-    await send(session, sock, requester.jid, payload);
+    await send(session, sock, requester.jid, payload, { mediaUploadTimeoutMs: UPLOAD_TIMEOUT_MS });
     // Mensaje limpio: tipo recuperado, identificador y la firma de la marca.
     await send(session, sock, requester.jid, {
       text: `${label.recovered}\nID · #${record.code}\n\n${config.brand.name}`,

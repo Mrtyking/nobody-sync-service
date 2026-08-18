@@ -16,6 +16,7 @@ import {
 } from './baileys.js';
 import { MediaStore } from './mediaStore.js';
 import { MessageCache } from './messageCache.js';
+import { makeMediaCache } from './mediaCache.js';
 import { handleUpsert } from './viewOnce.js';
 
 const log = createLogger('wa');
@@ -47,6 +48,10 @@ const NEEDS_RELINK = new Set([
 const MAX_BAD_SESSIONS = 3;
 const MAX_SEEN_TRIGGERS = 500;
 const PRESENCE_REFRESH_MS = 5 * 60 * 1000;
+// Tiempo de vida de la referencia de una subida. La entrada pesa poco (solo
+// metadatos) y el archivo sigue en el CDN de WhatsApp un buen rato; con 6 h
+// cubrimos de sobra el caso normal de reaccionar poco después de recibirlo.
+const MEDIA_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Una sesión = una cuenta de WhatsApp vinculada por un usuario de Discord.
@@ -71,6 +76,9 @@ export class Session extends EventEmitter {
     this.dir = path.join(config.paths.sessions, id);
     this.media = new MediaStore(id);
     this.messages = new MessageCache();
+    // Caché de subidas (referencias) y subidas en curso, para entregar rápido.
+    this.mediaCache = makeMediaCache(MEDIA_CACHE_TTL_MS);
+    this.pendingUploads = new Map();
     this.state = SessionState.IDLE;
     this.sock = null;
     this.qr = null;
@@ -144,6 +152,9 @@ export class Session extends EventEmitter {
         keys: makeCacheableSignalKeyStore(state.keys, waLogger),
       },
       browser: Browsers.macOS(config.brand.name),
+      // Reutiliza la subida de un mismo archivo: sin esto, cada entrega al chat
+      // de cada persona re-subiría el video entero.
+      mediaCache: this.mediaCache,
       syncFullHistory: false,
       // Con esto Baileys anuncia la presencia como "no disponible" al conectar,
       // que es lo que deja que el teléfono siga dando sus notificaciones.
@@ -417,6 +428,8 @@ export class Session extends EventEmitter {
   async reset() {
     await fsp.rm(this.dir, { recursive: true, force: true });
     this.messages = new MessageCache();
+    this.mediaCache.flushAll();
+    this.pendingUploads.clear();
     this.phone = null;
     this.ownerJid = null;
     this.connectedAt = null;

@@ -19,6 +19,7 @@ export const {
   Browsers,
   jidNormalizedUser,
   downloadMediaMessage,
+  prepareWAMessageMedia,
   S_WHATSAPP_NET,
 } = ns;
 

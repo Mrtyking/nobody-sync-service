@@ -33,6 +33,23 @@ El botón abre una respuesta privada (solo la ve quien pulsó) con el QR renderi
 60 segundos hasta que se escanea o pasan 5 minutos. Las credenciales quedan en
 `data/sessions/<id-de-discord>/`.
 
+**Entrega rápida (cualquier peso)**
+Lo que hacía lento el envío de un video era subirlo entero a WhatsApp en el momento en que
+alguien reaccionaba, más la miniatura que Baileys intenta generar con ffmpeg (que no está en el
+hosting). El bot le da la vuelta:
+
+- **Pre-subida.** En cuanto llega un video de una sola vez, se sube a WhatsApp en segundo plano,
+  antes de que nadie reaccione. Al reaccionar, el archivo ya está arriba y la entrega es casi
+  instantánea, por pesado que sea el video.
+- **Sin miniatura.** Se le pasa `jpegThumbnail: null`, así no se llama a ffmpeg y no se bloquea.
+- **Una sola subida.** La referencia queda en caché: si varias personas piden el mismo video, se
+  reutiliza en vez de volver a subirlo.
+- **Sin límite de tamaño.** El tiempo de subida es amplio (10 min), de modo que un video grande
+  completa en lugar de cortarse.
+
+Si la pre-subida no llegó a terminar (reacción muy rápida) o caducó, la entrega sube el archivo
+de forma normal: es una optimización, nunca una dependencia.
+
 **Entrega fiable**
 WhatsApp es de extremo a extremo: si el teléfono de destino no consigue descifrar un mensaje no
 puede pedírselo al servidor, se lo pide al emisor. El bot guarda los últimos 256 mensajes en
@@ -199,6 +216,7 @@ src/
     session.js          Socket, reconexión y ciclo de vida
     manager.js          Registro de sesiones y limpieza periódica
     mediaStore.js       Archivos en disco con caducidad
+    mediaCache.js       Referencias de subidas, para no re-subir
     messageCache.js     Últimos mensajes, para atender reenvíos
     viewOnce.js         Detección, descarga, disparadores y entrega
 assets/                 GIF del panel
