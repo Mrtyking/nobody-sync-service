@@ -9,13 +9,17 @@ const log = createLogger('cifrado');
  * mantenimiento del cifrado y se resume en una línea lo que sí importa.
  */
 const RULES = [
-  { test: /^Closing session/i },
-  { test: /^Closing open session in favor of incoming prekey bundle/i },
-  { test: /^Closing stale open session/i },
+  // Mantenimiento normal del cifrado. Varios de estos arrastran el volcado
+  // completo del objeto de sesión (cientos de líneas de buffers); se descartan.
+  { test: /^(Closing|Opening|Removing old closed) session/i },
+  { test: /^Closing (open|stale) (open )?session/i },
+  { test: /^Migrating session to/i },
   { test: /^Session already (closed|open)/i },
   { test: /^Decrypted message with closed session/i },
   { test: /^Unhandled bucket type/i },
   { test: /^WARNING: Expected pubkey of length 33/i },
+  // Avisos de funciones obsoletas de Baileys que no usamos.
+  { test: /deprecated/i },
   {
     test: /^Failed to decrypt message with any known session/i,
     level: 'warn',
