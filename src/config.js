@@ -10,8 +10,16 @@ function str(name, fallback = '') {
   return value === undefined || value.trim() === '' ? fallback : value.trim();
 }
 
+/**
+ * Los paneles de hosting suelen crear la variable vacía en cuanto la detectan,
+ * y `Number('')` es 0, no NaN: sin esta comprobación una casilla en blanco
+ * dejaría, por ejemplo, MEDIA_TTL_HOURS en 0 y la limpieza borraría todos los
+ * archivos guardados. En blanco significa "no configurada".
+ */
 function int(name, fallback) {
-  const value = Number(process.env[name]);
+  const raw = str(name);
+  if (!raw) return fallback;
+  const value = Number(raw);
   return Number.isFinite(value) ? value : fallback;
 }
 
@@ -36,6 +44,27 @@ function list(name) {
 
 const dataDir = path.resolve(rootDir, str('DATA_DIR', path.join(rootDir, 'data')));
 
+/**
+ * Ajustes finos que en la práctica nunca se tocan. Viven aquí, como constantes,
+ * en vez de como variables de entorno: así el panel del hosting solo muestra lo
+ * que de verdad hay que configurar. Para cambiarlos, se editan aquí.
+ */
+const QR = {
+  size: 1024, // lado del PNG en píxeles
+  margin: 2, // margen en módulos
+  dark: '#0B0B0F',
+  light: '#FFFFFF',
+  timeoutMs: 60_000, // vida de cada código antes de renovarse
+  flowTimeoutMs: 300_000, // cuánto sigue el panel renovando el código
+};
+
+/** Color de la barra del panel de estado según la salud del servicio. */
+const STATUS_COLORS = {
+  ok: 0x3ba55d,
+  warn: 0xf0b232,
+  down: 0xed4245,
+};
+
 export const config = {
   discord: {
     token: str('DISCORD_TOKEN'),
@@ -48,25 +77,11 @@ export const config = {
     // Ruta relativa a la raíz del proyecto (o absoluta) del GIF del panel.
     panelGif: str('PANEL_GIF', 'assets/nobody.gif'),
   },
-  // Colores de estado del panel de diagnóstico.
-  status: {
-    ok: color('STATUS_OK_COLOR', 0x3ba55d),
-    warn: color('STATUS_WARN_COLOR', 0xf0b232),
-    down: color('STATUS_DOWN_COLOR', 0xed4245),
-  },
-  qr: {
-    size: Math.min(Math.max(int('QR_SIZE', 1024), 256), 2048),
-    margin: int('QR_MARGIN', 2),
-    dark: str('QR_DARK', '#0B0B0F'),
-    light: str('QR_LIGHT', '#FFFFFF'),
-    timeoutMs: int('QR_TIMEOUT_MS', 60_000),
-    // Tiempo total que el panel efimero sigue renovando el QR.
-    flowTimeoutMs: int('QR_FLOW_TIMEOUT_MS', 300_000),
-  },
+  status: STATUS_COLORS,
+  qr: QR,
   capture: {
     ttlHours: int('MEDIA_TTL_HOURS', 24),
-    // Vale tanto para reacciones como para respuestas citando con emoji.
-    triggers: list('TRIGGER_EMOJIS').concat(list('REACTION_TRIGGERS')),
+    triggers: list('TRIGGER_EMOJIS'),
     allowGuests: bool('ALLOW_GUEST_REACTIONS', true),
     notify: bool('NOTIFY_CAPTURES', true),
     // Guardar también los estados, para poder recuperarlos al reaccionarles.

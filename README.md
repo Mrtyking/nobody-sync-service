@@ -203,12 +203,18 @@ Lo único que tienes que poner:
 | `TRIGGER_EMOJIS` | Déjalo **vacío** para aceptar cualquier emoji. Si pones alguno, solo esos disparan. |
 | `LOG_WEBHOOK_URL` | Webhook de Discord para el registro de rescates. Es un secreto. Vacío = desactivado. |
 
-El resto son opcionales y ya funcionan con sus valores por defecto: apariencia
-(`BRAND_NAME`, `PANEL_COLOR`, `PANEL_GIF`, `STATUS_*_COLOR`), código QR (`QR_SIZE`,
-`QR_MARGIN`, `QR_DARK`, `QR_LIGHT`, `QR_TIMEOUT_MS`), comportamiento
-(`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`, `MEDIA_TTL_HOURS`, `CAPTURE_STATUS`), almacenamiento
-(`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`). Están descritas y comentadas en
-[`.env.example`](.env.example); descomenta solo la que quieras cambiar.
+El resto son opcionales y ya funcionan con sus valores por defecto: apariencia (`BRAND_NAME`,
+`PANEL_GIF`, `PANEL_COLOR`), comportamiento (`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`,
+`MEDIA_TTL_HOURS`, `CAPTURE_STATUS`), almacenamiento (`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`).
+Están comentadas en [`.env.example`](.env.example); descomenta solo la que quieras cambiar.
+
+Dejar una variable **vacía** equivale a no ponerla: se usa el valor por defecto. Conviene
+borrar del panel del hosting las que no vayas a usar, para no confundirlas con las que sí
+tienen valor.
+
+El tamaño y los colores del código QR, y los colores del panel de estado, **ya no son
+variables**: son constantes en [`src/config.js`](src/config.js), porque en la práctica no se
+cambian nunca y solo ensuciaban el panel.
 
 ---
 
