@@ -307,6 +307,15 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   }
   if (!requester.isOwner && !config.capture.allowGuests) return;
 
+  // Un estado se difunde a TODOS los contactos, así que cualquiera puede
+  // reaccionarle. Si atendiéramos esas reacciones ajenas, tu bot le mandaría
+  // tu propio estado a quien le diera un corazón. Cada quien recupera lo que
+  // ve con su propia sesión: aquí solo cuenta la reacción del dueño.
+  if (!requester.isOwner && entry.key.remoteJid === STATUS_JID) {
+    log.debug(`Reacción ajena a un estado ignorada (${session.id})`);
+    return;
+  }
+
   // Puede que aún se esté descargando (reacción inmediata): esperarla evita
   // quedarnos sin nada que entregar por milésimas.
   await session.pendingArchives.get(targetId)?.catch(() => {});
@@ -321,6 +330,13 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
         text: `No pude recuperar ese archivo. Solo se guardan los que llegan con ${config.brand.name} conectado, y el emisor puede haberlo eliminado.`,
       }).catch(() => {});
     }
+    return;
+  }
+
+  // Segunda barrera: si lo pedido resulta ser un estado, sigue valiendo solo
+  // para su dueño, venga la reacción por donde venga.
+  if (record.isStatus && !requester.isOwner) {
+    log.debug(`Petición ajena de un estado ignorada (${session.id})`);
     return;
   }
 

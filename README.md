@@ -120,6 +120,11 @@ Funciona igual con los **estados**: si reaccionas a un estado con un corazón (o
 emoji), recibes esa foto o video en tu propio chat, anunciado como `Estado recuperado`. Se
 desactiva con `CAPTURE_STATUS=false`.
 
+En los estados solo cuenta **tu propia** reacción, aunque `ALLOW_GUEST_REACTIONS` esté activo.
+Un estado se difunde a todos tus contactos, así que atender reacciones ajenas haría que tu bot
+le mandase tu estado a cualquiera que le diera un corazón. Cada quien recupera lo que ve con su
+propia sesión.
+
 Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
 - **Respondiendo al mensaje** con un emoji (mantener pulsado → Responder → mandar el emoji).
