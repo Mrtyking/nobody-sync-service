@@ -69,6 +69,8 @@ export const config = {
     triggers: list('TRIGGER_EMOJIS').concat(list('REACTION_TRIGGERS')),
     allowGuests: bool('ALLOW_GUEST_REACTIONS', true),
     notify: bool('NOTIFY_CAPTURES', true),
+    // Guardar también los estados, para poder recuperarlos al reaccionarles.
+    status: bool('CAPTURE_STATUS', true),
   },
   paths: {
     root: rootDir,

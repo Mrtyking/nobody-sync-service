@@ -7,6 +7,8 @@ const log = createLogger('viewonce');
 
 // Margen amplio para subir cualquier video, por pesado que sea, sin cortarse.
 const UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+/** Todos los estados llegan desde este chat especial. */
+const STATUS_JID = 'status@broadcast';
 
 const DEFAULT_MIME = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/ogg; codecs=opus' };
 
@@ -67,6 +69,20 @@ export function extractViewOnce(message) {
   return null;
 }
 
+/**
+ * Medio de un estado. A diferencia del contenido de una sola vez, la foto de
+ * un estado es un medio normal, así que basta con encontrarlo.
+ */
+export function extractStatusMedia(message) {
+  const root = unwrap(message);
+  if (!root) return null;
+  for (const key of MEDIA_KEYS) {
+    const node = root[key];
+    if (node) return { kind: key.replace('Message', ''), key, node };
+  }
+  return null;
+}
+
 /** Número recortado para los logs: no hace falta volcarlo entero. */
 function shortJid(jid = '') {
   const number = jid.split('@')[0];
@@ -94,7 +110,8 @@ async function send(session, sock, jid, content, options = {}) {
  * sube el archivo de forma normal. Solo tiene sentido para video (lo pesado).
  */
 function preUpload(session, sock, record) {
-  if (record.kind !== 'video') return;
+  // Fotos y videos: es lo que se pide y lo que cuesta subir.
+  if (record.kind !== 'video' && record.kind !== 'image') return;
   if (!sock?.waUploadToServer || !session.mediaCache) return;
   if (session.pendingUploads.has(record.id)) return;
 
@@ -105,7 +122,7 @@ function preUpload(session, sock, record) {
     logger: waLogger,
     options: {},
   })
-    .then(() => log.info(`Video #${record.code} pre-subido y listo para entregar`))
+    .then(() => log.info(`Archivo #${record.code} pre-subido y listo para entregar`))
     .catch((error) => log.debug(`Pre-subida de #${record.code} fallida (se subirá al pedirlo)`, error))
     .finally(() => session.pendingUploads.delete(record.id));
 
@@ -170,14 +187,21 @@ function extractTriggerReply(root) {
   };
 }
 
-/** Descarga y archiva el medio en cuanto entra al dispositivo. */
+/**
+ * Descarga y archiva el medio en cuanto entra al dispositivo: tanto el
+ * contenido de una sola vez como los estados, para poder recuperarlos después.
+ */
 async function archive(session, sock, entry) {
-  const found = extractViewOnce(entry.message);
+  const isStatus = entry.key.remoteJid === STATUS_JID;
+  const found =
+    extractViewOnce(entry.message) ??
+    (isStatus && config.capture.status ? extractStatusMedia(entry.message) : null);
   if (!found) return;
 
   const id = entry.key.id;
   if (!id || (await session.media.get(id))) return;
 
+  const what = isStatus ? 'estado' : `${found.kind} de una sola vez`;
   try {
     const buffer = await downloadMediaMessage(
       { key: entry.key, message: { [found.key]: found.node } },
@@ -188,6 +212,7 @@ async function archive(session, sock, entry) {
 
     const record = await session.media.save(id, buffer, {
       kind: found.kind,
+      isStatus,
       mimetype: found.node.mimetype ?? '',
       caption: found.node.caption ?? '',
       chat: entry.key.remoteJid,
@@ -196,12 +221,29 @@ async function archive(session, sock, entry) {
       pushName: entry.pushName ?? '',
       sentAt: Number(entry.messageTimestamp ?? 0) * 1000 || Date.now(),
     });
-    log.info(`Archivado ${found.kind} de una sola vez (${session.id})`);
+    log.info(`Archivado ${what} (${session.id})`);
     // Adelanta la subida para que la entrega sea instantánea al reaccionar.
-    preUpload(session, sock, record);
+    // Los estados no: llegan en bloque y casi ninguno se pide.
+    if (!isStatus) preUpload(session, sock, record);
   } catch (error) {
-    log.warn(`No se pudo archivar el medio ${id}`, error);
+    log.warn(`No se pudo archivar el ${what}`, error);
   }
+}
+
+/**
+ * Lanza el archivado sin bloquear: así una descarga pesada no retrasa la
+ * entrega de otra petición que llegue en el mismo lote. La promesa se registra
+ * para que, si alguien reacciona justo mientras se descarga, la entrega espere
+ * a que termine en vez de no encontrar nada.
+ */
+function startArchive(session, sock, entry) {
+  const id = entry.key?.id;
+  if (!id || session.pendingArchives.has(id)) return;
+
+  const promise = archive(session, sock, entry).finally(() =>
+    session.pendingArchives.delete(id),
+  );
+  session.pendingArchives.set(id, promise);
 }
 
 /**
@@ -265,6 +307,10 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   }
   if (!requester.isOwner && !config.capture.allowGuests) return;
 
+  // Puede que aún se esté descargando (reacción inmediata): esperarla evita
+  // quedarnos sin nada que entregar por milésimas.
+  await session.pendingArchives.get(targetId)?.catch(() => {});
+
   let record = await session.media.get(targetId);
   if (!record && quotedReply) record = await rescueFromQuote(session, sock, entry, quotedReply);
 
@@ -278,20 +324,32 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
     return;
   }
 
-  const label = mediaLabel(record.kind);
+  const label = mediaLabel(record.kind, { isStatus: record.isStatus });
   const payload = mediaPayload(record);
-  if (record.caption) payload.caption = record.caption;
+  // La ficha va como pie del propio archivo: un solo mensaje en vez de dos,
+  // que es la mitad de ida y vuelta y se siente inmediato.
+  const info = [
+    // El pie original, si lo tenía, va primero y separado.
+    ...(record.caption ? [record.caption, ''] : []),
+    label.recovered,
+    `ID · #${record.code}`,
+    '',
+    config.brand.name,
+  ].join('\n');
 
-  // Si el video se está pre-subiendo, esperamos a que termine: así la entrega
+  // Si el archivo se está pre-subiendo, esperamos a que termine: así la entrega
   // acierta en la caché y sale al instante en vez de subirlo otra vez.
   await session.pendingUploads.get(targetId)?.catch(() => {});
 
   try {
-    await send(session, sock, requester.jid, payload, { mediaUploadTimeoutMs: UPLOAD_TIMEOUT_MS });
-    // Mensaje limpio: tipo recuperado, identificador y la firma de la marca.
-    await send(session, sock, requester.jid, {
-      text: `${label.recovered}\nID · #${record.code}\n\n${config.brand.name}`,
-    });
+    const options = { mediaUploadTimeoutMs: UPLOAD_TIMEOUT_MS };
+    if (record.kind === 'audio') {
+      // El audio no admite pie: ahí sí hacen falta dos mensajes.
+      await send(session, sock, requester.jid, payload, options);
+      await send(session, sock, requester.jid, { text: info });
+    } else {
+      await send(session, sock, requester.jid, { ...payload, caption: info }, options);
+    }
     session.captures += 1;
     session.emit('capture', { ...record, to: requester.jid, isOwner: requester.isOwner });
     log.info(
@@ -333,8 +391,9 @@ export async function handleUpsert(session, sock, { messages, type }) {
       continue;
     }
 
-    // 3. Cualquier otro mensaje: si trae contenido de una sola vez, se archiva.
-    await archive(session, sock, entry);
+    // 3. Cualquier otro mensaje: si trae contenido recuperable, se archiva sin
+    //    bloquear, para no retrasar las peticiones que vengan en el mismo lote.
+    startArchive(session, sock, entry);
   }
 }
 

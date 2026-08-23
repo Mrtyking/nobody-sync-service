@@ -31,7 +31,9 @@ export function humanSize(bytes) {
 }
 
 /** Etiqueta legible de un tipo de medio, con la concordancia ya resuelta. */
-export function mediaLabel(kind) {
+export function mediaLabel(kind, { isStatus = false } = {}) {
+  // Lo que se recupera de un estado se anuncia como estado, no como foto.
+  if (isStatus) return { noun: 'Estado', recovered: 'Estado recuperado' };
   return (
     {
       image: { noun: 'Foto', recovered: 'Foto recuperada' },

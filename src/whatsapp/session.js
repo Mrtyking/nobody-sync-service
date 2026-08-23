@@ -79,6 +79,7 @@ export class Session extends EventEmitter {
     // Caché de subidas (referencias) y subidas en curso, para entregar rápido.
     this.mediaCache = makeMediaCache(MEDIA_CACHE_TTL_MS);
     this.pendingUploads = new Map();
+    this.pendingArchives = new Map();
     this.state = SessionState.IDLE;
     this.sock = null;
     this.qr = null;
@@ -430,6 +431,7 @@ export class Session extends EventEmitter {
     this.messages = new MessageCache();
     this.mediaCache.flushAll();
     this.pendingUploads.clear();
+    this.pendingArchives.clear();
     this.phone = null;
     this.ownerJid = null;
     this.connectedAt = null;

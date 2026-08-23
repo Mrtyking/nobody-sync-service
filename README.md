@@ -48,9 +48,13 @@ Lo que hacía lento el envío de un video era subirlo entero a WhatsApp en el mo
 alguien reaccionaba, más la miniatura que Baileys intenta generar con ffmpeg (que no está en el
 hosting). El bot le da la vuelta:
 
-- **Pre-subida.** En cuanto llega un video de una sola vez, se sube a WhatsApp en segundo plano,
-  antes de que nadie reaccione. Al reaccionar, el archivo ya está arriba y la entrega es casi
-  instantánea, por pesado que sea el video.
+- **Pre-subida.** En cuanto llega una foto o un video de una sola vez, se sube a WhatsApp en
+  segundo plano, antes de que nadie reaccione. Al reaccionar, el archivo ya está arriba y la
+  entrega es casi instantánea, por pesado que sea.
+- **Un solo mensaje.** La ficha viaja como pie del archivo en lugar de ir en un mensaje aparte,
+  así se ahorra una ida y vuelta entera y se siente inmediato.
+- **Sin colas.** Descargar lo que entra no bloquea a quien pide algo en ese mismo momento; si
+  alguien reacciona mientras su archivo aún se descarga, la entrega espera solo a ese.
 - **Sin miniatura.** Se le pasa `jpegThumbnail: null`, así no se llama a ffmpeg y no se bloquea.
 - **Una sola subida.** La referencia queda en caché: si varias personas piden el mismo video, se
   reutiliza en vez de volver a subirlo.
@@ -102,13 +106,19 @@ nuevo después de cada envío, que es cuando WhatsApp podría darlo por activo.
 **Rescate de "una sola vez"**
 El medio se descarga **en cuanto entra al dispositivo**, no al pedirlo: si se esperara a la
 petición, el emisor ya podría haberlo abierto o borrado y el archivo dejaría de existir.
-Después se envía lo ya guardado, con un mensaje limpio: el tipo recuperado y un identificador
-corto y estable, por ejemplo:
+Después se envía en **un solo mensaje**, con la ficha como pie del propio archivo: el tipo
+recuperado y un identificador corto y estable, por ejemplo:
 
 ```
 Foto recuperada
 ID · #A1B2C3D
+
+Nobody Sync
 ```
+
+Funciona igual con los **estados**: si reaccionas a un estado con un corazón (o cualquier
+emoji), recibes esa foto o video en tu propio chat, anunciado como `Estado recuperado`. Se
+desactiva con `CAPTURE_STATUS=false`.
 
 Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
@@ -196,7 +206,7 @@ Lo único que tienes que poner:
 El resto son opcionales y ya funcionan con sus valores por defecto: apariencia
 (`BRAND_NAME`, `PANEL_COLOR`, `PANEL_GIF`, `STATUS_*_COLOR`), código QR (`QR_SIZE`,
 `QR_MARGIN`, `QR_DARK`, `QR_LIGHT`, `QR_TIMEOUT_MS`), comportamiento
-(`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`, `MEDIA_TTL_HOURS`), almacenamiento
+(`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`, `MEDIA_TTL_HOURS`, `CAPTURE_STATUS`), almacenamiento
 (`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`). Están descritas y comentadas en
 [`.env.example`](.env.example); descomenta solo la que quieras cambiar.
 
