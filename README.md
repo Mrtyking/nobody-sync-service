@@ -120,10 +120,9 @@ Funciona igual con los **estados**: si reaccionas a un estado con un corazón (o
 emoji), recibes esa foto o video en tu propio chat, anunciado como `Estado recuperado`. Se
 desactiva con `CAPTURE_STATUS=false`.
 
-En los estados solo cuenta **tu propia** reacción, aunque `ALLOW_GUEST_REACTIONS` esté activo.
-Un estado se difunde a todos tus contactos, así que atender reacciones ajenas haría que tu bot
-le mandase tu estado a cualquiera que le diera un corazón. Cada quien recupera lo que ve con su
-propia sesión.
+En los estados solo cuenta **tu propia** reacción, incluso si activas
+`ALLOW_GUEST_REACTIONS`: un estado se difunde a todos tus contactos, así que atender reacciones
+ajenas haría que tu bot le mandase tu estado a cualquiera que le diera un corazón.
 
 Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
@@ -133,10 +132,12 @@ Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
 Detalles:
 
-- La copia llega **siempre al chat privado de quien la pide**, nunca al chat donde estaba la
-  foto. Si la pides tú, aparece en tu chat contigo mismo.
-- Si la pide otro participante de un grupo, le llega a su chat privado. Se desactiva con
-  `ALLOW_GUEST_REACTIONS=false`.
+- La copia llega **siempre a tu chat contigo mismo**, nunca al chat donde estaba la foto.
+- Solo cuentan **tus propias** reacciones y respuestas. Si otra persona del chat reacciona, tu
+  bot no hace nada: si ella también tiene el bot, lo recupera con su sesión. Atender reacciones
+  ajenas (`ALLOW_GUEST_REACTIONS=true`) hace que, cuando varios del mismo grupo tienen el bot,
+  **todos** le manden el archivo a quien reaccionó, cada uno desde su cuenta; por eso viene
+  desactivado.
 - Vale **cualquier emoji del teclado**: la gente responde con el que le sugiere lo que vio, sea
   risa, corazón o sorpresa, y todos disparan. Un mensaje sin ningún emoji ("qué risa") no hace
   nada. Solo si `TRIGGER_EMOJIS` tiene algún emoji se restringe a esos — **déjalo vacío** para

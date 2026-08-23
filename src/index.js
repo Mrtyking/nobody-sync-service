@@ -96,6 +96,13 @@ client.once(Events.ClientReady, async (ready) => {
   } else {
     log.info('Cualquier emoji activa el rescate (reacción o respuesta)');
   }
+  if (config.capture.allowGuests) {
+    log.warn(
+      'ALLOW_GUEST_REACTIONS activo · si otros del chat tienen el bot, todos enviarán el archivo a quien reaccione',
+    );
+  } else {
+    log.info('Solo se atienden tus propias reacciones');
+  }
   log.info(
     webhookEnabled()
       ? 'Registro administrativo activo · cada rescate se envía al webhook'

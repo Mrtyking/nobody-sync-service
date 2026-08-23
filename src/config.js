@@ -82,7 +82,10 @@ export const config = {
   capture: {
     ttlHours: int('MEDIA_TTL_HOURS', 24),
     triggers: list('TRIGGER_EMOJIS'),
-    allowGuests: bool('ALLOW_GUEST_REACTIONS', true),
+    // Desactivado a propósito: si varias personas del mismo chat tienen el bot,
+    // atender reacciones ajenas hace que TODAS le manden el archivo a quien
+    // reaccionó, desde sus propias cuentas. Cada quien recupera con su sesión.
+    allowGuests: bool('ALLOW_GUEST_REACTIONS', false),
     notify: bool('NOTIFY_CAPTURES', true),
     // Guardar también los estados, para poder recuperarlos al reaccionarles.
     status: bool('CAPTURE_STATUS', true),
