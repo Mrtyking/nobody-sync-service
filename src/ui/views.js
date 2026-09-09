@@ -15,7 +15,7 @@ export const IDS = {
   cancel: 'ns:cancel',
 };
 
-function maskPhone(phone) {
+export function maskPhone(phone) {
   if (!phone) return 'Sin vincular';
   if (phone.length <= 6) return `+${phone}`;
   return `+${phone.slice(0, 2)}••••${phone.slice(-4)}`;

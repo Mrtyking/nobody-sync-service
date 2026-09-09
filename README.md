@@ -1,8 +1,10 @@
 # Nobody Sync
 
-Bot de Discord que publica un panel con `/setpanel`. Desde ese panel cada usuario genera un
-código QR en alta definición, vincula su WhatsApp y el bot mantiene la sesión conectada de
-forma permanente.
+Bot de Discord y de Telegram que publica un panel (`/setpanel` en Discord, `/panel` en
+Telegram). Desde ese panel cada usuario genera un código QR en alta definición, vincula su
+WhatsApp y el bot mantiene la sesión conectada de forma permanente. Las dos plataformas son
+independientes: puedes activar solo una o las dos a la vez, y cada usuario tiene su propia
+sesión de WhatsApp sin importar desde dónde la vinculó.
 
 Cuando llega una foto, un video o un audio **de una sola vez**, el bot lo descarga al instante
 y lo guarda. Si alguien reacciona a ese mensaje con un emoji, recibe una copia en su propio
@@ -28,6 +30,16 @@ Los tres comandos publican en el canal indicado (o el actual) y requieren permis
   color según la salud. El mensaje se recuerda en disco y el bot lo sigue refrescando tras un
   reinicio.
 
+**Panel en Telegram**
+En un chat privado con el bot, `/start` o `/panel` muestran el mismo panel (con el mismo GIF
+si `PANEL_GIF` está disponible) con tres botones: generar QR, ver estado y desconectar. Como
+Telegram no puede iniciar una conversación privada con alguien que nunca le escribió, la
+vinculación solo ocurre en el chat privado del propio usuario con el bot. Si usas `/panel` (o
+`/terms` o `/status`) dentro de un grupo, el bot responde con un botón que abre ese chat
+privado, para no exponer el QR ni el estado de nadie al resto del grupo; `/terms` sí puede
+publicarse directamente en un grupo (es solo informativo) y `/status` en un grupo publica el
+mismo panel público que se refresca cada minuto que en Discord.
+
 **Estado del sistema**
 El botón de estado no muestra un texto fijo: mide en el momento de pulsarlo la latencia del
 websocket de Discord, el tiempo de respuesta real de la interacción y la latencia contra los
@@ -38,10 +50,12 @@ WhatsApp está caído pero reconectando, rojo si Discord no responde. Incluye un
 **Actualizar** que vuelve a medirlo todo sin salir del mensaje.
 
 **Vinculación**
-El botón abre una respuesta privada (solo la ve quien pulsó) con el QR renderizado a
-1024 × 1024, corrección de errores nivel H y márgenes limpios. El código se renueva solo cada
-60 segundos hasta que se escanea o pasan 5 minutos. Las credenciales quedan en
-`data/sessions/<id-de-discord>/`.
+El botón abre una respuesta privada (solo la ve quien pulsó, o en Telegram directamente un
+mensaje en el chat privado) con el QR renderizado a 1024 × 1024, corrección de errores nivel H
+y márgenes limpios. El código se renueva solo cada 60 segundos hasta que se escanea o pasan 5
+minutos. Las credenciales quedan en `data/sessions/<id>/`: el id es el de Discord tal cual, o
+`tg-<id-de-telegram>` si se vinculó desde Telegram, así las dos plataformas nunca chocan entre
+sí ni con sesiones ya vinculadas desde antes de que existiera Telegram.
 
 **Entrega rápida (cualquier peso)**
 Lo que hacía lento el envío de un video era subirlo entero a WhatsApp en el momento en que
@@ -87,13 +101,14 @@ Solo deja de reintentar cuando el dispositivo pierde la autorización de verdad 
 pasajeros, así que se reintenta y solo tras tres seguidos se da por perdida.
 
 En ningún caso se borran las credenciales por su cuenta. La sesión queda marcada como
-"pendiente de revincular", el usuario recibe un aviso por privado en Discord explicando qué
-pasó, y sus archivos guardados siguen intactos. La limpieza ocurre cuando él pide un código
-nuevo o pulsa Desconectar.
+"pendiente de revincular", el usuario recibe un aviso por privado (en Discord o en Telegram,
+según desde dónde se vinculó) explicando qué pasó, y sus archivos guardados siguen intactos. La
+limpieza ocurre cuando él pide un código nuevo o pulsa Desconectar.
 
 **Varias cuentas a la vez**
-Cada usuario de Discord tiene su propia sesión, su carpeta de credenciales y su almacén de
-archivos, y son independientes: que una se caiga o haya que revincularla no afecta a las demás.
+Cada usuario tiene su propia sesión, su carpeta de credenciales y su almacén de archivos, sin
+importar si vinculó desde Discord o desde Telegram, y son independientes: que una se caiga o
+haya que revincularla no afecta a las demás.
 Cada socket se numera internamente, de modo que un evento tardío de una conexión ya sustituida
 no puede dejar muda a la que está viva. Cuenta con unos 60–80 MB de memoria por cuenta
 conectada a la hora de elegir el plan del hosting.
@@ -166,7 +181,9 @@ hosting, nunca en el repositorio.
 npm install
 ```
 
-Copia `.env.example` a `.env` y rellena al menos `DISCORD_TOKEN` y `DISCORD_CLIENT_ID`.
+Copia `.env.example` a `.env` y rellena al menos una plataforma: `DISCORD_TOKEN` +
+`DISCORD_CLIENT_ID`, o `TELEGRAM_BOT_TOKEN` (ver más abajo cómo conseguir cada una). Puedes
+poner las dos a la vez.
 
 ```bash
 npm start
@@ -181,6 +198,21 @@ npm start
    y **Enviar mensajes** en el canal del panel.
 4. Pon tu `DISCORD_GUILD_ID` mientras pruebas: los comandos aparecen al instante en lugar de
    tardar hasta una hora.
+
+### Configuración del bot en Telegram
+
+1. Abre un chat con [@BotFather](https://t.me/BotFather) en Telegram (es la cuenta oficial que
+   crea bots nuevos) y mándale `/newbot`.
+2. Te pide un **nombre** para mostrar (puede tener espacios y repetirse, p. ej. `Nobody Sync`)
+   y luego un **usuario** único que termine en `bot` (p. ej. `nobody_sync_bot`).
+3. BotFather responde con un mensaje que incluye el **token** (algo como
+   `123456789:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`). Cópialo en `TELEGRAM_BOT_TOKEN`. No hace
+   falta nada más: a diferencia de Discord, Telegram no tiene un "Application ID" aparte ni hay
+   que invitarlo a ningún sitio ni marcar permisos.
+4. Con `npm start` el propio bot registra sus comandos (`/start`, `/panel`, `/terms`,
+   `/status`) al arrancar; aparecen solos al escribir `/` en el chat.
+5. Para vincular tu WhatsApp, abre un chat privado con tu bot (búscalo por el usuario que le
+   pusiste) y manda `/start`.
 
 ---
 
@@ -203,11 +235,15 @@ Lo único que tienes que poner:
 
 | Variable | Para qué sirve |
 | --- | --- |
-| `DISCORD_TOKEN` | Token del bot. **Obligatorio.** |
-| `DISCORD_CLIENT_ID` | Application ID. **Obligatorio.** |
+| `DISCORD_TOKEN` | Token del bot de Discord. **Obligatorio si usas Discord.** |
+| `DISCORD_CLIENT_ID` | Application ID de Discord. **Obligatorio si usas Discord.** |
 | `DISCORD_GUILD_ID` | Tu servidor: hace que `/setpanel` aparezca al instante. Vacío = hasta 1 h. |
+| `TELEGRAM_BOT_TOKEN` | Token de @BotFather. **Obligatorio si usas Telegram.** |
 | `TRIGGER_EMOJIS` | Déjalo **vacío** para aceptar cualquier emoji. Si pones alguno, solo esos disparan. |
-| `LOG_WEBHOOK_URL` | Webhook de Discord para el registro de rescates. Es un secreto. Vacío = desactivado. |
+| `LOG_WEBHOOK_URL` | Webhook de Discord para el registro de rescates (de las dos plataformas). Es un secreto. Vacío = desactivado. |
+
+Necesitas al menos `DISCORD_TOKEN` + `DISCORD_CLIENT_ID`, o `TELEGRAM_BOT_TOKEN`; puedes poner
+las dos cosas a la vez si quieres el bot en ambas plataformas.
 
 El resto son opcionales y ya funcionan con sus valores por defecto: apariencia (`BRAND_NAME`,
 `PANEL_GIF`, `PANEL_COLOR`), comportamiento (`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`,
@@ -228,7 +264,7 @@ cambian nunca y solo ensuciaban el panel.
 
 ```
 src/
-  index.js              Arranque, avisos por DM y apagado limpio
+  index.js              Arranque de las dos plataformas, registro administrativo y apagado
   config.js             Lectura y validación del entorno
   status.js             Métricas en vivo de Discord, WhatsApp y proceso
   discord/
@@ -236,6 +272,13 @@ src/
     interactions.js     Router de comandos y botones, flujo del QR
     statusBoard.js      Panel público de estado que se refresca solo
     webhook.js          Registro administrativo de cada rescate
+  telegram/
+    bot.js              Arranque del bot, avisos por privado y oyentes de sesión
+    commands.js         Registro de /start, /panel, /terms, /status
+    interactions.js     Router de comandos y botones, flujo del QR
+    statusBoard.js      Panel público de /status en un grupo, se refresca solo
+    status.js           Métricas en vivo de Telegram, WhatsApp y proceso
+    views.js            Textos y teclados de cada pantalla, en HTML
   ui/
     render.js           Components V2 con fallback automático a embed
     views.js            Textos y estructura de cada pantalla

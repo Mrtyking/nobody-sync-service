@@ -71,6 +71,11 @@ export const config = {
     clientId: str('DISCORD_CLIENT_ID'),
     guildId: str('DISCORD_GUILD_ID'),
   },
+  telegram: {
+    // Token de @BotFather. Basta con esto: a diferencia de Discord, Telegram
+    // no tiene un "Application ID" aparte.
+    token: str('TELEGRAM_BOT_TOKEN'),
+  },
   brand: {
     name: str('BRAND_NAME', 'Nobody Sync'),
     color: color('PANEL_COLOR', 0x5865f2),
@@ -109,12 +114,23 @@ export function ensureDirs() {
 }
 
 export function assertConfig() {
+  // Cada plataforma es independiente: puedes tener solo Discord, solo
+  // Telegram, o las dos encendidas a la vez, y cada una vincula sus propias
+  // sesiones de WhatsApp.
+  const wantsDiscord = Boolean(config.discord.token || config.discord.clientId);
   const missing = [];
-  if (!config.discord.token) missing.push('DISCORD_TOKEN');
-  if (!config.discord.clientId) missing.push('DISCORD_CLIENT_ID');
+  if (wantsDiscord) {
+    if (!config.discord.token) missing.push('DISCORD_TOKEN');
+    if (!config.discord.clientId) missing.push('DISCORD_CLIENT_ID');
+  }
   if (missing.length) {
     throw new Error(
       `Faltan variables de entorno: ${missing.join(', ')}. Copia .env.example a .env y complétalas.`,
+    );
+  }
+  if (!config.discord.token && !config.telegram.token) {
+    throw new Error(
+      'Falta configurar al menos una plataforma: define DISCORD_TOKEN + DISCORD_CLIENT_ID, o TELEGRAM_BOT_TOKEN, en tu .env.',
     );
   }
 }
