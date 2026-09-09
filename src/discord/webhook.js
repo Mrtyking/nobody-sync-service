@@ -23,13 +23,6 @@ function maskPhone(value = '') {
   return `+${number.slice(0, 2)}••••${number.slice(-4)}`;
 }
 
-/** El id de sesión identifica también la plataforma: "tg-<id>" es Telegram, el resto Discord. */
-function ownerLabel(sessionId) {
-  if (!sessionId) return 'Desconocido';
-  if (sessionId.startsWith('tg-')) return `Telegram · \`${sessionId.slice(3)}\``;
-  return `<@${sessionId}>`;
-}
-
 function buildEmbed({ discordUserId, accountPhone, record, to, isOwner }) {
   const label = mediaLabel(record.kind);
   const origin = record.fromMe
@@ -43,7 +36,7 @@ function buildEmbed({ discordUserId, accountPhone, record, to, isOwner }) {
       { name: 'ID', value: `\`#${record.code}\``, inline: true },
       { name: 'Tamaño', value: humanSize(record.size), inline: true },
       { name: 'Origen', value: origin, inline: true },
-      { name: 'Usuario', value: ownerLabel(discordUserId), inline: true },
+      { name: 'Usuario', value: discordUserId ? `<@${discordUserId}>` : 'Desconocido', inline: true },
       { name: 'Cuenta', value: maskPhone(accountPhone), inline: true },
       { name: 'Destino', value: isOwner ? 'Su propio chat' : maskPhone(to), inline: true },
     ],
