@@ -377,18 +377,19 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
  */
 export async function handleUpsert(session, sock, { messages, type }) {
   for (const entry of messages ?? []) {
-    if (!entry?.message || !entry.key) continue;
-    const root = unwrap(entry.message);
-    if (!root) continue;
+    if (!entry?.key) continue;
+    const root = entry.message ? unwrap(entry.message) : null;
 
-    // ─── Diagnóstico temporal (solo nombres de tipo, sin contenido ni números):
-    // muestra qué llega y si detectamos contenido de una sola vez, para ver por
-    // qué no se archiva. Quitar cuando esté resuelto.
+    // ─── Diagnóstico temporal (solo nombres de tipo, sin contenido ni números).
+    // Incluye los mensajes que llegan SIN contenido (no se pudieron descifrar),
+    // para distinguir "llegó pero no se descifró" de "no llegó". Quitar al resolver.
     log.info(
       `[diag] type=${type} fromMe=${Boolean(entry.key.fromMe)} ` +
-        `raw=[${Object.keys(entry.message).join(',')}] root=[${Object.keys(root).join(',')}] ` +
-        `vo=${Boolean(extractViewOnce(entry.message))}`,
+        `raw=[${entry.message ? Object.keys(entry.message).join(',') : '(sin contenido/no descifrado)'}] ` +
+        `vo=${root ? Boolean(extractViewOnce(entry.message)) : false}`,
     );
+
+    if (!root) continue;
 
     // 1. Reacción con emoji sobre el mensaje.
     const reaction = root.reactionMessage;
