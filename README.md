@@ -116,13 +116,6 @@ ID · #A1B2C3D
 Nobody Sync
 ```
 
-Funciona igual con los **estados**: si reaccionas a un estado con un corazón (o cualquier
-emoji), recibes esa foto o video en tu propio chat, anunciado como `Estado recuperado`. Se
-desactiva con `CAPTURE_STATUS=false`.
-
-En los estados solo cuenta **tu propia** reacción, incluso si activas
-`ALLOW_GUEST_REACTIONS`: un estado se difunde a todos tus contactos, así que atender reacciones
-ajenas haría que tu bot le mandase tu estado a cualquiera que le diera un corazón.
 
 Hay dos formas de pedirlo, y las dos funcionan con cualquier emoji:
 
@@ -211,7 +204,7 @@ Lo único que tienes que poner:
 
 El resto son opcionales y ya funcionan con sus valores por defecto: apariencia (`BRAND_NAME`,
 `PANEL_GIF`, `PANEL_COLOR`), comportamiento (`ALLOW_GUEST_REACTIONS`, `NOTIFY_CAPTURES`,
-`MEDIA_TTL_HOURS`, `CAPTURE_STATUS`), almacenamiento (`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`).
+`MEDIA_TTL_HOURS`), almacenamiento (`DATA_DIR`) y logs (`BAILEYS_LOG_LEVEL`).
 Están comentadas en [`.env.example`](.env.example); descomenta solo la que quieras cambiar.
 
 Dejar una variable **vacía** equivale a no ponerla: se usa el valor por defecto. Conviene

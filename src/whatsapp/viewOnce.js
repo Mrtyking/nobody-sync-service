@@ -24,9 +24,6 @@ function downloadMedia(descriptor, sock) {
     ),
   ]);
 }
-/** Todos los estados llegan desde este chat especial. */
-const STATUS_JID = 'status@broadcast';
-
 const DEFAULT_MIME = { image: 'image/jpeg', video: 'video/mp4', audio: 'audio/ogg; codecs=opus' };
 
 /**
@@ -82,20 +79,6 @@ export function extractViewOnce(message) {
     if (!node) continue;
     if (!wrapper && !node.viewOnce) continue;
     return { kind: key.replace('Message', ''), key, node, message: target };
-  }
-  return null;
-}
-
-/**
- * Medio de un estado. A diferencia del contenido de una sola vez, la foto de
- * un estado es un medio normal, así que basta con encontrarlo.
- */
-export function extractStatusMedia(message) {
-  const root = unwrap(message);
-  if (!root) return null;
-  for (const key of MEDIA_KEYS) {
-    const node = root[key];
-    if (node) return { kind: key.replace('Message', ''), key, node };
   }
   return null;
 }
@@ -205,20 +188,17 @@ function extractTriggerReply(root) {
 }
 
 /**
- * Descarga y archiva el medio en cuanto entra al dispositivo: tanto el
- * contenido de una sola vez como los estados, para poder recuperarlos después.
+ * Descarga y archiva el contenido de una sola vez en cuanto entra al
+ * dispositivo, para poder recuperarlo después.
  */
 async function archive(session, sock, entry) {
-  const isStatus = entry.key.remoteJid === STATUS_JID;
-  const found =
-    extractViewOnce(entry.message) ??
-    (isStatus && config.capture.status ? extractStatusMedia(entry.message) : null);
+  const found = extractViewOnce(entry.message);
   if (!found) return;
 
   const id = entry.key.id;
   if (!id || (await session.media.get(id))) return;
 
-  const what = isStatus ? 'estado' : `${found.kind} de una sola vez`;
+  const what = `${found.kind} de una sola vez`;
   try {
     const buffer = await downloadMedia(
       { key: entry.key, message: { [found.key]: found.node } },
@@ -227,7 +207,6 @@ async function archive(session, sock, entry) {
 
     const record = await session.media.save(id, buffer, {
       kind: found.kind,
-      isStatus,
       mimetype: found.node.mimetype ?? '',
       caption: found.node.caption ?? '',
       chat: entry.key.remoteJid,
@@ -238,8 +217,7 @@ async function archive(session, sock, entry) {
     });
     log.info(`Archivado ${what} (${session.id})`);
     // Adelanta la subida para que la entrega sea instantánea al reaccionar.
-    // Los estados no: llegan en bloque y casi ninguno se pide.
-    if (!isStatus) preUpload(session, sock, record);
+    preUpload(session, sock, record);
   } catch (error) {
     log.warn(`No se pudo archivar el ${what}`, error);
   }
@@ -320,15 +298,6 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   }
   if (!requester.isOwner && !config.capture.allowGuests) return;
 
-  // Un estado se difunde a TODOS los contactos, así que cualquiera puede
-  // reaccionarle. Si atendiéramos esas reacciones ajenas, tu bot le mandaría
-  // tu propio estado a quien le diera un corazón. Cada quien recupera lo que
-  // ve con su propia sesión: aquí solo cuenta la reacción del dueño.
-  if (!requester.isOwner && entry.key.remoteJid === STATUS_JID) {
-    log.debug(`Reacción ajena a un estado ignorada (${session.id})`);
-    return;
-  }
-
   // Puede que aún se esté descargando (reacción inmediata): esperarla evita
   // quedarnos sin nada que entregar por milésimas.
   await session.pendingArchives.get(targetId)?.catch(() => {});
@@ -346,14 +315,7 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
     return;
   }
 
-  // Segunda barrera: si lo pedido resulta ser un estado, sigue valiendo solo
-  // para su dueño, venga la reacción por donde venga.
-  if (record.isStatus && !requester.isOwner) {
-    log.debug(`Petición ajena de un estado ignorada (${session.id})`);
-    return;
-  }
-
-  const label = mediaLabel(record.kind, { isStatus: record.isStatus });
+  const label = mediaLabel(record.kind);
   const payload = mediaPayload(record);
   // La ficha va como pie del propio archivo: un solo mensaje en vez de dos,
   // que es la mitad de ida y vuelta y se siente inmediato.

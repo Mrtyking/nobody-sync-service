@@ -87,8 +87,6 @@ export const config = {
     // reaccionó, desde sus propias cuentas. Cada quien recupera con su sesión.
     allowGuests: bool('ALLOW_GUEST_REACTIONS', false),
     notify: bool('NOTIFY_CAPTURES', true),
-    // Guardar también los estados, para poder recuperarlos al reaccionarles.
-    status: bool('CAPTURE_STATUS', true),
   },
   paths: {
     root: rootDir,
