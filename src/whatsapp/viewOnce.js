@@ -7,6 +7,23 @@ const log = createLogger('viewonce');
 
 // Margen amplio para subir cualquier video, por pesado que sea, sin cortarse.
 const UPLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+// Igual de generoso para la descarga: un archivo pesado tiene margen de sobra,
+// pero ninguna descarga puede quedarse colgada para siempre bloqueando la
+// entrega de la petición que la espera.
+const DOWNLOAD_TIMEOUT_MS = 10 * 60 * 1000;
+
+/** Descarga el medio a un buffer, con un tope de tiempo para no colgarse. */
+function downloadMedia(descriptor, sock) {
+  return Promise.race([
+    downloadMediaMessage(descriptor, 'buffer', {}, {
+      logger: waLogger,
+      reuploadRequest: sock.updateMediaMessage,
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('La descarga agotó el tiempo')), DOWNLOAD_TIMEOUT_MS),
+    ),
+  ]);
+}
 /** Todos los estados llegan desde este chat especial. */
 const STATUS_JID = 'status@broadcast';
 
@@ -203,11 +220,9 @@ async function archive(session, sock, entry) {
 
   const what = isStatus ? 'estado' : `${found.kind} de una sola vez`;
   try {
-    const buffer = await downloadMediaMessage(
+    const buffer = await downloadMedia(
       { key: entry.key, message: { [found.key]: found.node } },
-      'buffer',
-      {},
-      { logger: waLogger, reuploadRequest: sock.updateMediaMessage },
+      sock,
     );
 
     const record = await session.media.save(id, buffer, {
@@ -256,7 +271,7 @@ async function rescueFromQuote(session, sock, entry, reply) {
   if (!found) return null;
 
   try {
-    const buffer = await downloadMediaMessage(
+    const buffer = await downloadMedia(
       {
         key: {
           remoteJid: entry.key.remoteJid,
@@ -266,9 +281,7 @@ async function rescueFromQuote(session, sock, entry, reply) {
         },
         message: { [found.key]: found.node },
       },
-      'buffer',
-      {},
-      { logger: waLogger, reuploadRequest: sock.updateMediaMessage },
+      sock,
     );
 
     log.info(`Recuperado ${found.kind} desde el mensaje citado (${session.id})`);
