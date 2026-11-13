@@ -381,6 +381,15 @@ export async function handleUpsert(session, sock, { messages, type }) {
     const root = unwrap(entry.message);
     if (!root) continue;
 
+    // ─── Diagnóstico temporal (solo nombres de tipo, sin contenido ni números):
+    // muestra qué llega y si detectamos contenido de una sola vez, para ver por
+    // qué no se archiva. Quitar cuando esté resuelto.
+    log.info(
+      `[diag] type=${type} fromMe=${Boolean(entry.key.fromMe)} ` +
+        `raw=[${Object.keys(entry.message).join(',')}] root=[${Object.keys(root).join(',')}] ` +
+        `vo=${Boolean(extractViewOnce(entry.message))}`,
+    );
+
     // 1. Reacción con emoji sobre el mensaje.
     const reaction = root.reactionMessage;
     if (reaction) {
