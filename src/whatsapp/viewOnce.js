@@ -156,7 +156,7 @@ function matchesTrigger(text) {
 }
 
 /** Quién pidió el archivo, resolviendo los JID nuevos (@lid) cuando existen. */
-function resolveRequester(entry, ownerJid) {
+function resolveRequester(entry, ownerJid, ownerLid) {
   if (entry.key.fromMe) return { jid: ownerJid, isOwner: true };
   const raw =
     entry.key.participantPn ??
@@ -166,7 +166,13 @@ function resolveRequester(entry, ownerJid) {
     entry.key.remoteJid;
   if (!raw) return null;
   const jid = jidNormalizedUser(raw);
-  if (jid.endsWith('@lid')) return null; // sin número real no podemos escribirle
+  if (jid.endsWith('@lid')) {
+    // WhatsApp migró a identificadores ocultos (@lid). Si quien reacciona es el
+    // propio dueño con su @lid, lo reconocemos por su id oculto y entregamos a
+    // su chat. De un @lid ajeno no tenemos el número real, así que no se puede.
+    if (ownerLid && jid === ownerLid) return { jid: ownerJid, isOwner: true };
+    return null;
+  }
   return { jid, isOwner: jid === ownerJid };
 }
 
@@ -291,7 +297,10 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   // El dueño se saca del socket vivo: los metadatos en memoria pueden ir por
   // detrás tras una reconexión, y sin él las peticiones propias se perderían.
   const ownerJid = sock.user?.id ? jidNormalizedUser(sock.user.id) : session.ownerJid;
-  const requester = resolveRequester(entry, ownerJid);
+  // Su id oculto (@lid), para reconocer sus propias reacciones cuando WhatsApp
+  // las entrega con ese formato en vez de con el número.
+  const ownerLid = sock.user?.lid ? jidNormalizedUser(sock.user.lid) : null;
+  const requester = resolveRequester(entry, ownerJid, ownerLid);
   if (!requester?.jid) {
     log.warn(`No se pudo identificar a quién enviar el archivo (${session.id})`);
     return;
