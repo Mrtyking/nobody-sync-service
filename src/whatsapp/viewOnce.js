@@ -302,7 +302,15 @@ async function deliverMedia(session, sock, entry, targetId, { quotedReply = null
   const ownerLid = sock.user?.lid ? jidNormalizedUser(sock.user.lid) : null;
   const requester = resolveRequester(entry, ownerJid, ownerLid);
   if (!requester?.jid) {
-    log.warn(`No se pudo identificar a quién enviar el archivo (${session.id})`);
+    // Diagnóstico sin números: solo el dominio de cada campo (@lid, @s.whatsapp.net…)
+    // y si teníamos el id oculto del dueño, para ver por qué no se resolvió.
+    const k = entry.key ?? {};
+    const dom = (j) => (j ? (j.split('@')[1] ?? '?') : '-');
+    log.warn(
+      `No se pudo identificar a quién enviar el archivo (${session.id}) · ` +
+        `fromMe=${Boolean(k.fromMe)} pn=${dom(k.participantPn)} alt=${dom(k.participantAlt)} ` +
+        `part=${dom(k.participant)} remote=${dom(k.remoteJid)} ownerLid=${ownerLid ? 'sí' : 'no'}`,
+    );
     return;
   }
   if (!requester.isOwner && !config.capture.allowGuests) return;
